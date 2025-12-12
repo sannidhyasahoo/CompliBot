@@ -138,4 +138,17 @@ const initDB = () => {
 
 initDB();
 
+export const getUser = (telegram_chat_id) => {
+    const stmt = db.prepare('SELECT * FROM users WHERE telegram_chat_id = ?');
+    return stmt.get(telegram_chat_id);
+};
+
+export const addUser = (user) => {
+    const stmt = db.prepare(`
+        INSERT INTO users (telegram_chat_id, gstin, trade_name, state_code)
+        VALUES (@telegram_chat_id, @gstin, @trade_name, @state_code)
+    `);
+    return stmt.run(user);
+};
+
 export default db;
