@@ -2,6 +2,8 @@ import bot from './bot.js';
 import app from './server.js'; // Import the Express App
 import dotenv from 'dotenv';
 
+
+
 // Load environment variables
 dotenv.config();
 
