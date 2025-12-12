@@ -4,7 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md}\""
   },
   "author": "",
   "type": "module",
@@ -16,6 +20,8 @@
     "telegraf": "^4.16.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "eslint": "^8.57.0",
+    "nodemon": "^3.1.11",
+    "prettier": "^3.1.1"
   }
 }
