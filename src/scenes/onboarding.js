@@ -52,7 +52,7 @@ const onboardingScene = new WizardScene(
 
         try {
             // Save to DB
-            addUser(newUser);
+            await addUser(newUser);
             
             ctx.reply(`✅ **Setup Complete!**\n\nBusiness: ${newUser.trade_name}\nGSTIN: ${newUser.gstin}\n\nYou can now use /status to check your filings.`);
             return ctx.scene.leave(); // Exit the wizard

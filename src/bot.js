@@ -20,15 +20,14 @@ bot.catch((err, ctx) => {
 });
 
 // START COMMAND (The Entry Point)
-bot.start((ctx) => {
-    // 1. Check if user exists in DB
-    const existingUser = getUser(ctx.chat.id);
+bot.start(async (ctx) => {
+    
+    // 2. ADD 'await' HERE vvv
+    const existingUser = await getUser(ctx.chat.id);
 
     if (existingUser) {
-        // User exists -> Show Dashboard options
         ctx.reply(`👋 Welcome back, ${existingUser.trade_name}!\n\nUse /status to check filing status.`);
     } else {
-        // User is new -> Trigger Onboarding Scene
         ctx.scene.enter('onboarding');
     }
 });
