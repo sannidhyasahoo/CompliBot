@@ -54,14 +54,19 @@ const onboardingScene = new WizardScene(
             // Save to DB
             await addUser(newUser);
             
-            ctx.reply(`✅ **Setup Complete!**\n\nBusiness: ${newUser.trade_name}\nGSTIN: ${newUser.gstin}\n\nYou can now use /status to check your filings.`);
+            ctx.reply(`✅ **Setup Complete!**\n\nBusiness: ${newUser.trade_name}\nGSTIN: ${newUser.gstin}\nState Code: ${stateCode}\n\n🎯 You can now:\n• Use /status to check your filings\n• Login to the web dashboard with your GSTIN\n\n🌐 **Web Dashboard**: Use your GSTIN to login and get OTP via this bot!`, { parse_mode: 'Markdown' });
             return ctx.scene.leave(); // Exit the wizard
         } catch (err) {
-            console.error(err);
-            if (err.message.includes('UNIQUE constraint failed')) {
-                ctx.reply('⚠️ This GSTIN is already registered.');
+            console.error('❌ Registration Error:', err);
+            
+            if (err.message.includes('UNIQUE constraint failed: users.gstin')) {
+                ctx.reply('⚠️ This GSTIN is already registered. Use /status to check your details.');
+            } else if (err.message.includes('UNIQUE constraint failed: users.telegram_chat_id')) {
+                ctx.reply('⚠️ You are already registered. Use /status to check your details.');
+            } else if (err.message.includes('FOREIGN KEY constraint failed')) {
+                ctx.reply(`⚠️ Invalid state code (${stateCode}) in GSTIN. Please check your GSTIN format.`);
             } else {
-                ctx.reply('❌ Database Error. Please try /start again.');
+                ctx.reply('❌ Registration failed. Please try /start again or contact support.');
             }
             return ctx.scene.leave();
         }

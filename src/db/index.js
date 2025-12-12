@@ -57,13 +57,49 @@ const initDB = async () => {
         await db.executeMultiple(schema);
 
         // Seed Data (Check if exists first to avoid errors)
-        // Note: INSERT OR IGNORE works well
+        // Note: INSERT OR IGNORE works well - Add ALL Indian state codes
         await db.executeMultiple(`
             INSERT OR IGNORE INTO gst_state_codes (code, state_name, type) VALUES
-            ('29', 'Karnataka', 'STATE'),
-            ('27', 'Maharashtra', 'STATE'),
+            ('01', 'Jammu and Kashmir', 'UT'),
+            ('02', 'Himachal Pradesh', 'STATE'),
+            ('03', 'Punjab', 'STATE'),
+            ('04', 'Chandigarh', 'UT'),
+            ('05', 'Uttarakhand', 'STATE'),
+            ('06', 'Haryana', 'STATE'),
             ('07', 'Delhi', 'UT'),
-            ('33', 'Tamil Nadu', 'STATE');
+            ('08', 'Rajasthan', 'STATE'),
+            ('09', 'Uttar Pradesh', 'STATE'),
+            ('10', 'Bihar', 'STATE'),
+            ('11', 'Sikkim', 'STATE'),
+            ('12', 'Arunachal Pradesh', 'STATE'),
+            ('13', 'Nagaland', 'STATE'),
+            ('14', 'Manipur', 'STATE'),
+            ('15', 'Mizoram', 'STATE'),
+            ('16', 'Tripura', 'STATE'),
+            ('17', 'Meghalaya', 'STATE'),
+            ('18', 'Assam', 'STATE'),
+            ('19', 'West Bengal', 'STATE'),
+            ('20', 'Jharkhand', 'STATE'),
+            ('21', 'Odisha', 'STATE'),
+            ('22', 'Chhattisgarh', 'STATE'),
+            ('23', 'Madhya Pradesh', 'STATE'),
+            ('24', 'Gujarat', 'STATE'),
+            ('25', 'Daman and Diu', 'UT'),
+            ('26', 'Dadra and Nagar Haveli', 'UT'),
+            ('27', 'Maharashtra', 'STATE'),
+            ('28', 'Andhra Pradesh', 'STATE'),
+            ('29', 'Karnataka', 'STATE'),
+            ('30', 'Goa', 'STATE'),
+            ('31', 'Lakshadweep', 'UT'),
+            ('32', 'Kerala', 'STATE'),
+            ('33', 'Tamil Nadu', 'STATE'),
+            ('34', 'Puducherry', 'UT'),
+            ('35', 'Andaman and Nicobar Islands', 'UT'),
+            ('36', 'Telangana', 'STATE'),
+            ('37', 'Andhra Pradesh (New)', 'STATE'),
+            ('38', 'Ladakh', 'UT'),
+            ('97', 'Other Territory', 'OTHER'),
+            ('99', 'Centre Jurisdiction', 'OTHER');
         `);
 
         console.log("✅ Cloud Database connected & verified.");
@@ -73,7 +109,10 @@ const initDB = async () => {
 };
 
 // Run initialization
-initDB();
+initDB().catch(err => {
+    console.error('❌ Critical: Database initialization failed:', err);
+    process.exit(1);
+});
 
 // ===========================================
 // MEMBER 1: DATABASE HELPER FUNCTIONS (ASYNC)
@@ -83,46 +122,89 @@ initDB();
  * Get a user by their Telegram Chat ID
  */
 export const getUser = async (telegram_chat_id) => {
-    // Use '?' for parameters in LibSQL
-    const result = await db.execute({
-        sql: 'SELECT * FROM users WHERE telegram_chat_id = ?',
-        args: [telegram_chat_id]
-    });
-    // result.rows is an array. Return the first object.
-    return result.rows[0]; 
+    try {
+        // Use '?' for parameters in LibSQL
+        const result = await db.execute({
+            sql: 'SELECT * FROM users WHERE telegram_chat_id = ?',
+            args: [telegram_chat_id]
+        });
+        // result.rows is an array. Return the first object.
+        return result.rows[0]; 
+    } catch (error) {
+        console.error('❌ Database error in getUser:', error);
+        throw error;
+    }
 };
 
 /**
  * Get Telegram Chat ID by GSTIN
  */
 export const getChatIdByGstin = async (gstin) => {
-    const result = await db.execute({
-        sql: 'SELECT telegram_chat_id FROM users WHERE gstin = ?',
-        args: [gstin]
-    });
-    return result.rows.length > 0 ? result.rows[0].telegram_chat_id : null;
+    try {
+        const result = await db.execute({
+            sql: 'SELECT telegram_chat_id FROM users WHERE gstin = ?',
+            args: [gstin]
+        });
+        return result.rows.length > 0 ? result.rows[0].telegram_chat_id : null;
+    } catch (error) {
+        console.error('❌ Database error in getChatIdByGstin:', error);
+        throw error;
+    }
+};
+
+/**
+ * Check if state code exists in database
+ */
+export const validateStateCode = async (stateCode) => {
+    try {
+        const result = await db.execute({
+            sql: 'SELECT code FROM gst_state_codes WHERE code = ?',
+            args: [stateCode]
+        });
+        return result.rows.length > 0;
+    } catch (error) {
+        console.error('❌ Database error in validateStateCode:', error);
+        return false;
+    }
 };
 
 /**
  * Add a new user to the database
  */
 export const addUser = async (user) => {
-    // Note: Use ':' for named parameters matches
-    const sql = `
-        INSERT INTO users (telegram_chat_id, gstin, trade_name, state_code)
-        VALUES (:telegram_chat_id, :gstin, :trade_name, :state_code)
-    `;
-    
-    await db.execute({
-        sql,
-        args: {
-            telegram_chat_id: user.telegram_chat_id,
-            gstin: user.gstin,
-            trade_name: user.trade_name,
-            state_code: user.state_code
+    try {
+        // First validate that the state code exists
+        const stateExists = await validateStateCode(user.state_code);
+        if (!stateExists) {
+            // If state code doesn't exist, add it as 'OTHER'
+            console.log(`⚠️ Unknown state code ${user.state_code}, adding as OTHER`);
+            await db.execute({
+                sql: 'INSERT OR IGNORE INTO gst_state_codes (code, state_name, type) VALUES (?, ?, ?)',
+                args: [user.state_code, `State ${user.state_code}`, 'OTHER']
+            });
         }
-    });
-    return true;
+
+        // Now add the user
+        const sql = `
+            INSERT INTO users (telegram_chat_id, gstin, trade_name, state_code)
+            VALUES (:telegram_chat_id, :gstin, :trade_name, :state_code)
+        `;
+        
+        await db.execute({
+            sql,
+            args: {
+                telegram_chat_id: user.telegram_chat_id,
+                gstin: user.gstin,
+                trade_name: user.trade_name,
+                state_code: user.state_code
+            }
+        });
+        console.log(`✅ User added successfully: ${user.gstin} - ${user.trade_name} (State: ${user.state_code})`);
+        return true;
+    } catch (error) {
+        console.error('❌ Database error in addUser:', error);
+        throw error;
+    }
 };
 
 export default db;
