@@ -4,15 +4,24 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node test-complete.js",
+    "test:api": "node test-api.js",
+    "test:modules": "node -e \"require('./test-complete.js').testGSTHelper(); require('./test-complete.js').testJSONHelper();\"",
+    "bot": "node src/index.js"
   },
   "author": "",
-  "type": "module",
   "license": "ISC",
   "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "axios": "^1.6.2",
     "better-sqlite3": "^12.5.0",
+    "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "form-data": "^4.0.0",
+    "multer": "^1.4.5-lts.1",
     "telegraf": "^4.16.3"
   },
   "devDependencies": {
