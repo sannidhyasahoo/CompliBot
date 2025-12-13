@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 src/modules/playground.js
 node_modules
 #documentation
@@ -8,3 +9,14 @@ MOBILE_TESTING_CHECKLIST.md
 PROGRESS_TRACKER.md
 QUICK_REFERENCE.txt
 API_INTEGRATION_GUIDE.md
+=======
+node_modules/
+.env
+data/*.db
+.DS_Store
+*.md
+reset-database.js
+test-api.js
+test-otp.js
+verify-setup.js
+>>>>>>> sanni

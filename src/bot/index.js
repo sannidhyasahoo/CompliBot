@@ -1,8 +1,8 @@
 const { Telegraf, session, Scenes } = require('telegraf');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const config = require('./config/env');
-const { getUser, addUser } = require('./db/index');
-const { validateGSTIN } = require('./modules/gstHelper');
+const config = require('../config/env');
+const { getUser, addUser, validateStateCode } = require('../db/index');
+const { validateGSTIN, getStateCode } = require('../modules/gstHelper');
 
 // Initialize Google AI
 const genAI = new GoogleGenerativeAI(config.googleAI.apiKey);
@@ -16,7 +16,7 @@ const languages = {
         ask_trade_name: "📝 What is your business/trade name?",
         ask_legal_name: "🏢 What is your legal business name? (Optional - press /skip if same as trade name)",
         ask_gstin: "🔢 Please enter your 15-digit GSTIN:",
-        ask_state: "📍 Which state is your business registered in? (Enter 2-digit state code, e.g., 29 for Karnataka)",
+        ask_state: "📍 Which state is your business registered in?",
         invalid_gstin: "❌ Invalid GSTIN format. Please enter a valid 15-digit GSTIN (e.g., 29AAACH7409R1Z2)",
         invalid_state: "❌ Invalid state code. Please enter a valid 2-digit state code (e.g., 29 for Karnataka)",
         registration_success: "✅ Registration successful! Welcome to CompliBot, {tradeName}!\n\n📋 Your Details:\nGSTIN: {gstin}\nTrade Name: {tradeName}\nState: {stateCode}\n\nYou can now:\n• Upload invoices for processing\n• Get GST compliance help\n• Ask questions about GST",
@@ -31,7 +31,7 @@ const languages = {
         ask_trade_name: "📝 आपका व्यापारिक/व्यवसायिक नाम क्या है?",
         ask_legal_name: "🏢 आपका कानूनी व्यवसायिक नाम क्या है? (वैकल्पिक - यदि व्यापारिक नाम के समान है तो /skip दबाएं)",
         ask_gstin: "🔢 कृपया अपना 15-अंकीय जीएसटीआईएन दर्ज करें:",
-        ask_state: "📍 आपका व्यवसाय किस राज्य में पंजीकृत है? (2-अंकीय राज्य कोड दर्ज करें, जैसे कर्नाटक के लिए 29)",
+        ask_state: "📍 आपका व्यवसाय किस राज्य में पंजीकृत है?",
         invalid_gstin: "❌ अमान्य जीएसटीआईएन प्रारूप। कृपया एक वैध 15-अंकीय जीएसटीआईएन दर्ज करें (जैसे, 29AAACH7409R1Z2)",
         invalid_state: "❌ अमान्य राज्य कोड। कृपया एक वैध 2-अंकीय राज्य कोड दर्ज करें (जैसे, कर्नाटक के लिए 29)",
         registration_success: "✅ पंजीकरण सफल! कंप्लाईबॉट में आपका स्वागत है, {tradeName}!\n\n📋 आपका विवरण:\nजीएसटीआईएन: {gstin}\nव्यापारिक नाम: {tradeName}\nराज्य: {stateCode}\n\nअब आप कर सकते हैं:\n• प्रसंस्करण के लिए चालान अपलोड करें\n• जीएसटी अनुपालन सहायता प्राप्त करें\n• जीएसटी के बारे में प्रश्न पूछें",
@@ -46,7 +46,7 @@ const languages = {
         ask_trade_name: "📝 మీ వ్యాపార/వాణిజ్య పేరు ఏమిటి?",
         ask_legal_name: "🏢 మీ చట్టపరమైన వ్యాపార పేరు ఏమిటి? (ఐచ్ఛికం - వాణిజ్య పేరు వలెనే ఉంటే /skip నొక్కండి)",
         ask_gstin: "🔢 దయచేసి మీ 15-అంకెల GSTIN ను నమోదు చేయండి:",
-        ask_state: "📍 మీ వ్యాపారం ఏ రాష్ట్రంలో నమోదు చేయబడింది? (2-అంకెల రాష్ట్ర కోడ్ నమోదు చేయండి, ఉదా., కర్ణాటక కోసం 29)",
+        ask_state: "📍 మీ వ్యాపారం ఏ రాష్ట్రంలో నమోదు చేయబడింది?",
         invalid_gstin: "❌ చెల్లని GSTIN ఫార్మాట్. దయచేసి చెల్లుబాటు అయ్యే 15-అంకెల GSTIN ను నమోదు చేయండి (ఉదా., 29AAACH7409R1Z2)",
         invalid_state: "❌ చెల్లని రాష్ట్ర కోడ్. దయచేసి చెల్లుబాటు అయ్యే 2-అంకెల రాష్ట్ర కోడ్ ను నమోదు చేయండి (ఉదా., కర్ణాటక కోసం 29)",
         registration_success: "✅ నమోదు విజయవంతం! కంప్లైబాట్‌కు స్వాగతం, {tradeName}!\n\n📋 మీ వివరాలు:\nGSTIN: {gstin}\nవాణిజ్య పేరు: {tradeName}\nరాష్ట్రం: {stateCode}\n\nఇప్పుడు మీరు చేయగలరు:\n• ప్రాసెసింగ్ కోసం ఇన్‌వాయిస్‌లను అప్‌లోడ్ చేయండి\n• GST అనుపాలన సహాయం పొందండి\n• GST గురించి ప్రశ్నలు అడగండి",
