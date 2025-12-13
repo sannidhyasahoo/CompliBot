@@ -1,17 +1,24 @@
-const { createClient } = require('@libsql/client');
-const config = require('../config/env');
+import { createClient } from '@libsql/client';
+import dotenv from 'dotenv';
 
-// Database configuration from centralized config
-const url = config.database.url;
-const authToken = config.database.authToken;
+dotenv.config();
 
-// Initialize Cloud Connection
+const url = process.env.TURSO_DATABASE_URL;
+const authToken = process.env.TURSO_AUTH_TOKEN;
+
+if (!url || !authToken) {
+    throw new Error('❌ Missing Database Credentials in .env (TURSO_DATABASE_URL or TURSO_AUTH_TOKEN)');
+}
+
+// 1. Initialize Cloud Connection
 const db = createClient({
     url,
     authToken,
 });
 
-// Schema Initialization (Async)
+// 2. Schema Initialization (Async)
+// Note: Cloud providers often suggest running schema via their CLI, 
+// but we can do it here for the Hackathon.
 const initDB = async () => {
     const schema = `
     CREATE TABLE IF NOT EXISTS gst_state_codes (
@@ -28,7 +35,7 @@ const initDB = async () => {
         legal_name TEXT,
         state_code TEXT NOT NULL,
         registration_date DATE DEFAULT CURRENT_DATE,
-        default_tax_rate REAL DEFAULT ${config.gst.defaultTaxRate},
+        default_tax_rate REAL DEFAULT 12.0,
         composition_scheme BOOLEAN DEFAULT 0,
         FOREIGN KEY(state_code) REFERENCES gst_state_codes(code)
     );
@@ -41,44 +48,16 @@ const initDB = async () => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(user_id) REFERENCES users(user_id)
     );
-
-    CREATE TABLE IF NOT EXISTS invoices (
-        invoice_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        invoice_number TEXT NOT NULL,
-        invoice_date DATE NOT NULL,
-        supplier_gstin TEXT NOT NULL,
-        recipient_gstin TEXT NOT NULL,
-        total_value REAL NOT NULL,
-        tax_amount REAL NOT NULL,
-        place_of_supply TEXT NOT NULL,
-        invoice_type TEXT DEFAULT 'R',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(user_id) REFERENCES users(user_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS invoice_items (
-        item_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        invoice_id INTEGER NOT NULL,
-        description TEXT NOT NULL,
-        hsn_code TEXT,
-        quantity REAL NOT NULL,
-        unit_price REAL NOT NULL,
-        taxable_value REAL NOT NULL,
-        tax_rate REAL NOT NULL,
-        cgst_amount REAL DEFAULT 0,
-        sgst_amount REAL DEFAULT 0,
-        igst_amount REAL DEFAULT 0,
-        cess_amount REAL DEFAULT 0,
-        FOREIGN KEY(invoice_id) REFERENCES invoices(invoice_id)
-    );
+    
+    -- (Add the other tables here: filings, b2b_batches, invoices, invoice_items, penalty_savings)
     `;
 
     try {
-        // Execute schema creation
+        // LibSQL allows executing multiple statements
         await db.executeMultiple(schema);
 
         // Seed Data (Check if exists first to avoid errors)
+        // Note: INSERT OR IGNORE works well - Add ALL Indian state codes
         await db.executeMultiple(`
             INSERT OR IGNORE INTO gst_state_codes (code, state_name, type) VALUES
             ('01', 'Jammu and Kashmir', 'UT'),
@@ -108,6 +87,7 @@ const initDB = async () => {
             ('25', 'Daman and Diu', 'UT'),
             ('26', 'Dadra and Nagar Haveli', 'UT'),
             ('27', 'Maharashtra', 'STATE'),
+            ('28', 'Andhra Pradesh', 'STATE'),
             ('29', 'Karnataka', 'STATE'),
             ('30', 'Goa', 'STATE'),
             ('31', 'Lakshadweep', 'UT'),
@@ -116,102 +96,115 @@ const initDB = async () => {
             ('34', 'Puducherry', 'UT'),
             ('35', 'Andaman and Nicobar Islands', 'UT'),
             ('36', 'Telangana', 'STATE'),
-            ('37', 'Andhra Pradesh', 'STATE'),
-            ('38', 'Ladakh', 'UT');
+            ('37', 'Andhra Pradesh (New)', 'STATE'),
+            ('38', 'Ladakh', 'UT'),
+            ('97', 'Other Territory', 'OTHER'),
+            ('99', 'Centre Jurisdiction', 'OTHER');
         `);
 
         console.log("✅ Cloud Database connected & verified.");
     } catch (err) {
         console.error("❌ Database Init Error:", err);
-        throw err;
     }
 };
 
-// Database helper functions
-const getUser = async (telegram_chat_id) => {
-    const result = await db.execute({
-        sql: 'SELECT * FROM users WHERE telegram_chat_id = ?',
-        args: [telegram_chat_id]
-    });
-    return result.rows[0];
-};
+// Run initialization
+initDB().catch(err => {
+    console.error('❌ Critical: Database initialization failed:', err);
+    process.exit(1);
+});
 
-const getChatIdByGstin = async (gstin) => {
-    const result = await db.execute({
-        sql: 'SELECT telegram_chat_id FROM users WHERE gstin = ?',
-        args: [gstin]
-    });
-    return result.rows.length > 0 ? result.rows[0].telegram_chat_id : null;
-};
+// ===========================================
+// MEMBER 1: DATABASE HELPER FUNCTIONS (ASYNC)
+// ===========================================
 
-const addUser = async (user) => {
-    const sql = `
-        INSERT INTO users (telegram_chat_id, gstin, trade_name, state_code)
-        VALUES (?, ?, ?, ?)
-    `;
-
-    await db.execute({
-        sql,
-        args: [user.telegram_chat_id, user.gstin, user.trade_name, user.state_code]
-    });
-    return true;
-};
-
-const saveInvoice = async (invoiceData) => {
-    const { supplier, recipient, invoice, items, userId } = invoiceData;
-
-    // Insert invoice
-    const invoiceResult = await db.execute({
-        sql: `INSERT INTO invoices 
-              (user_id, invoice_number, invoice_date, supplier_gstin, recipient_gstin, 
-               total_value, tax_amount, place_of_supply, invoice_type) 
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-            userId,
-            invoice.number,
-            invoice.date,
-            supplier.gstin,
-            recipient.gstin,
-            invoice.totalValue,
-            items.reduce((sum, item) => sum + (item.totalTax || 0), 0),
-            invoice.placeOfSupply,
-            invoice.invoiceType || 'R'
-        ]
-    });
-
-    const invoiceId = invoiceResult.lastInsertRowid;
-
-    // Insert invoice items
-    for (const item of items) {
-        await db.execute({
-            sql: `INSERT INTO invoice_items 
-                  (invoice_id, description, hsn_code, quantity, unit_price, 
-                   taxable_value, tax_rate, cgst_amount, sgst_amount, igst_amount, cess_amount) 
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            args: [
-                invoiceId,
-                item.description,
-                item.hsnCode,
-                item.quantity,
-                item.unitPrice,
-                item.taxableValue,
-                item.taxRate,
-                item.cgst || 0,
-                item.sgst || 0,
-                item.igst || 0,
-                0 // cess amount
-            ]
+/**
+ * Get a user by their Telegram Chat ID
+ */
+export const getUser = async (telegram_chat_id) => {
+    try {
+        // Use '?' for parameters in LibSQL
+        const result = await db.execute({
+            sql: 'SELECT * FROM users WHERE telegram_chat_id = ?',
+            args: [telegram_chat_id]
         });
+        // result.rows is an array. Return the first object.
+        return result.rows[0]; 
+    } catch (error) {
+        console.error('❌ Database error in getUser:', error);
+        throw error;
     }
-
-    return invoiceId;
 };
 
-module.exports = {
-    db,
-    initDB,
-    getUser,
-    getChatIdByGstin,
-    addUser,
-    saveInvoice
+/**
+ * Get Telegram Chat ID by GSTIN
+ */
+export const getChatIdByGstin = async (gstin) => {
+    try {
+        const result = await db.execute({
+            sql: 'SELECT telegram_chat_id FROM users WHERE gstin = ?',
+            args: [gstin]
+        });
+        return result.rows.length > 0 ? result.rows[0].telegram_chat_id : null;
+    } catch (error) {
+        console.error('❌ Database error in getChatIdByGstin:', error);
+        throw error;
+    }
 };
+
+/**
+ * Check if state code exists in database
+ */
+export const validateStateCode = async (stateCode) => {
+    try {
+        const result = await db.execute({
+            sql: 'SELECT code FROM gst_state_codes WHERE code = ?',
+            args: [stateCode]
+        });
+        return result.rows.length > 0;
+    } catch (error) {
+        console.error('❌ Database error in validateStateCode:', error);
+        return false;
+    }
+};
+
+/**
+ * Add a new user to the database
+ */
+export const addUser = async (user) => {
+    try {
+        // First validate that the state code exists
+        const stateExists = await validateStateCode(user.state_code);
+        if (!stateExists) {
+            // If state code doesn't exist, add it as 'OTHER'
+            console.log(`⚠️ Unknown state code ${user.state_code}, adding as OTHER`);
+            await db.execute({
+                sql: 'INSERT OR IGNORE INTO gst_state_codes (code, state_name, type) VALUES (?, ?, ?)',
+                args: [user.state_code, `State ${user.state_code}`, 'OTHER']
+            });
+        }
+
+        // Now add the user
+        const sql = `
+            INSERT INTO users (telegram_chat_id, gstin, trade_name, state_code)
+            VALUES (:telegram_chat_id, :gstin, :trade_name, :state_code)
+        `;
+        
+        await db.execute({
+            sql,
+            args: {
+                telegram_chat_id: user.telegram_chat_id,
+                gstin: user.gstin,
+                trade_name: user.trade_name,
+                state_code: user.state_code
+            }
+        });
+        console.log(`✅ User added successfully: ${user.gstin} - ${user.trade_name} (State: ${user.state_code})`);
+        return true;
+    } catch (error) {
+        console.error('❌ Database error in addUser:', error);
+        throw error;
+    }
+};
+
+export default db;

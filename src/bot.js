@@ -1,193 +1,72 @@
-const { Telegraf } = require('telegraf');
-const { getUser, addUser, getChatIdByGstin } = require('./db');
-const config = require('./config/env');
+import { Telegraf, session } from 'telegraf';
+import dotenv from 'dotenv';
+import stage from './scenes/index.js'; // <--- IMPORT THIS
+import { getUser } from './db/index.js'; // <--- IMPORT THIS
 
-// Bot configuration from centralized config
-const BOT_TOKEN = config.telegram.botToken;
-const NODE_ENV = config.server.nodeEnv;
-const API_BASE_URL = config.server.apiBaseUrl;
+dotenv.config();
 
-if (!BOT_TOKEN) {
-    console.warn('⚠️  TELEGRAM_BOT_TOKEN not configured. Bot features will be disabled.');
+if (!process.env.BOT_TOKEN) {
+    console.error('❌ BOT_TOKEN is missing from environment variables');
+    throw new Error('❌ BOT_TOKEN is missing');
 }
 
-// Initialize bot
-const bot = new Telegraf(BOT_TOKEN);
+const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Bot commands
-bot.start(async (ctx) => {
-    const welcomeMessage = `
-🤖 Welcome to CompliBot - Your GST Compliance Assistant!
+// Log bot initialization
+console.log('🤖 Telegram bot initialized with token:', process.env.BOT_TOKEN.substring(0, 10) + '...');
 
-I can help you with:
-📄 Process GST invoices from images
-📊 Generate GST return JSON format
-🔍 Validate GSTIN numbers
-📋 Track your GST filings
+// Middleware
+bot.use(session());
+bot.use(stage.middleware()); // <--- ENABLE THIS
 
-Use /help to see all available commands.
-    `;
-
-    await ctx.reply(welcomeMessage);
-});
-
-bot.help((ctx) => {
-    const helpMessage = `
-📋 Available Commands:
-
-/start - Start the bot
-/help - Show this help message
-/register - Register your GSTIN
-/profile - View your profile
-/process - Process an invoice image
-/status - Check your filing status
-
-📄 To process an invoice:
-1. Send /process command
-2. Upload your invoice image
-3. Get structured GST data
-
-🔧 Environment: ${NODE_ENV}
-    `;
-
-    ctx.reply(helpMessage);
-});
-
-bot.command('register', async (ctx) => {
-    const chatId = ctx.chat.id;
-
-    try {
-        const existingUser = await getUser(chatId);
-        if (existingUser) {
-            return ctx.reply('✅ You are already registered!\nUse /profile to view your details.');
-        }
-
-        ctx.reply(`
-📝 To register, please provide your details in this format:
-
-/register_details GSTIN TradeName StateCode
-
-Example:
-/register_details 29AAACH7409R1Z2 "ABC Traders" 29
-
-State codes: 29=Karnataka, 27=Maharashtra, 07=Delhi, etc.
-        `);
-    } catch (error) {
-        console.error('Registration check error:', error);
-        ctx.reply('❌ Error checking registration. Please try again.');
-    }
-});
-
-bot.command('register_details', async (ctx) => {
-    const chatId = ctx.chat.id;
-    const args = ctx.message.text.split(' ').slice(1);
-
-    if (args.length < 3) {
-        return ctx.reply('❌ Invalid format. Use: /register_details GSTIN TradeName StateCode');
-    }
-
-    const [gstin, tradeName, stateCode] = args;
-
-    try {
-        await addUser({
-            telegram_chat_id: chatId,
-            gstin: gstin,
-            trade_name: tradeName,
-            state_code: stateCode
-        });
-
-        ctx.reply(`✅ Registration successful!
-        
-📋 Your Details:
-GSTIN: ${gstin}
-Trade Name: ${tradeName}
-State Code: ${stateCode}
-
-You can now use /process to upload invoices.`);
-    } catch (error) {
-        console.error('Registration error:', error);
-        ctx.reply('❌ Registration failed. Please check your details and try again.');
-    }
-});
-
-bot.command('profile', async (ctx) => {
-    const chatId = ctx.chat.id;
-
-    try {
-        const user = await getUser(chatId);
-        if (!user) {
-            return ctx.reply('❌ You are not registered. Use /register to get started.');
-        }
-
-        const profileMessage = `
-👤 Your Profile:
-
-📋 GSTIN: ${user.gstin}
-🏢 Trade Name: ${user.trade_name}
-📍 State Code: ${user.state_code}
-📅 Registered: ${user.registration_date}
-💰 Default Tax Rate: ${user.default_tax_rate}%
-        `;
-
-        ctx.reply(profileMessage);
-    } catch (error) {
-        console.error('Profile fetch error:', error);
-        ctx.reply('❌ Error fetching profile. Please try again.');
-    }
-});
-
-bot.command('process', (ctx) => {
-    ctx.reply(`
-📄 Invoice Processing
-
-Please upload your invoice image (JPG, PNG, or PDF) and I'll extract the GST data for you.
-
-Supported formats:
-• JPEG/JPG images
-• PNG images  
-• PDF documents
-
-Just send the file after this message!
-    `);
-});
-
-// Handle document/photo uploads
-bot.on(['photo', 'document'], async (ctx) => {
-    const chatId = ctx.chat.id;
-
-    try {
-        const user = await getUser(chatId);
-        if (!user) {
-            return ctx.reply('❌ Please register first using /register');
-        }
-
-        ctx.reply('📄 Processing your invoice... This may take a few moments.');
-
-        // Here you would integrate with your GST processing API
-        // For now, just acknowledge receipt
-        ctx.reply(`
-✅ Invoice received! 
-
-🔄 Processing features:
-• Data extraction from image
-• GST validation
-• Return format generation
-
-This feature will be integrated with the GST processing API.
-Use the web API at ${API_BASE_URL}/generate-gst-json for now.
-        `);
-
-    } catch (error) {
-        console.error('Invoice processing error:', error);
-        ctx.reply('❌ Error processing invoice. Please try again.');
-    }
-});
-
-// Error handling
+// Global Error Handling
 bot.catch((err, ctx) => {
-    console.error('Bot error:', err);
-    ctx.reply('❌ Something went wrong. Please try again.');
+    console.error(`❌ Global Error:`, err);
+    ctx.reply('⚠️ Oops, something went wrong.');
 });
 
-// Export bot for use in other modules
-module.exports = bot;
+// START COMMAND (The Entry Point)
+bot.start(async (ctx) => {
+    try {
+        console.log(`🤖 Bot start command from chat ID: ${ctx.chat.id}`);
+        
+        const existingUser = await getUser(ctx.chat.id);
+
+        if (existingUser) {
+            console.log(`👋 Returning user: ${existingUser.trade_name} (${existingUser.gstin})`);
+            ctx.reply(`👋 Welcome back, ${existingUser.trade_name}!\n\nUse /status to check filing status.`);
+        } else {
+            console.log(`🆕 New user starting onboarding for chat ID: ${ctx.chat.id}`);
+            ctx.scene.enter('onboarding');
+        }
+    } catch (error) {
+        console.error('❌ Error in bot start command:', error);
+        ctx.reply('⚠️ Sorry, there was an error processing your request. Please try again.');
+    }
+});
+
+// Status command to check user registration
+bot.command('status', async (ctx) => {
+    try {
+        const user = await getUser(ctx.chat.id);
+        if (user) {
+            ctx.reply(`📊 *Your Status*\n\nBusiness: ${user.trade_name}\nGSTIN: ${user.gstin}\nState: ${user.state_code}\nRegistered: ${user.registration_date || 'N/A'}\n\n✅ You can now use the web dashboard!`, { parse_mode: 'Markdown' });
+        } else {
+            ctx.reply('❌ You are not registered yet. Please use /start to begin registration.');
+        }
+    } catch (error) {
+        console.error('❌ Error in status command:', error);
+        ctx.reply('⚠️ Error retrieving your status. Please try again.');
+    }
+});
+
+// Helper Command to clear session/DB for testing (Optional)
+bot.command('reset', (ctx) => {
+    // You might want to add a deleteUser function to db/index.js for this
+    ctx.reply('Debug: Please manually delete your row in the users table to reset.');
+});
+
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
+export default bot;

@@ -1,57 +1,45 @@
-const { initDB } = require('./db');
-const bot = require('./bot');
-const config = require('./config/env');
+import bot from './bot.js';
+import app from './server.js'; // Import the Express App
+import dotenv from 'dotenv';
 
-// Configuration from centralized config
-const NODE_ENV = config.server.nodeEnv;
-const LOG_LEVEL = config.logging.level;
 
-// Initialize application
-async function startApplication() {
+
+// Load environment variables
+dotenv.config();
+
+const startString = '🚀 CompliBot is online...';
+const PORT = process.env.PORT || 3000;
+
+// Startup function with proper error handling
+const startApplication = async () => {
     try {
-        console.log('🚀 Starting CompliBot Application...');
-        console.log(`🌍 Environment: ${NODE_ENV}`);
-        console.log(`📊 Log Level: ${LOG_LEVEL}`);
-
-        // Initialize database
-        console.log('📊 Initializing database...');
-        await initDB();
-
-        // Start Telegram bot
-        console.log('🤖 Starting Telegram bot...');
+        // 1. Start Bot first
+        console.log('🤖 Starting Telegram Bot...');
         await bot.launch();
+        console.log('✅ Telegram Bot connected successfully');
 
-        console.log('✅ CompliBot is running successfully!');
-        console.log('📋 Available services:');
-        console.log('   • Telegram Bot: Active');
-        console.log('   • Database: Connected');
-        console.log('   • GST Processing: Ready');
-
-        // Graceful shutdown
-        process.once('SIGINT', () => {
-            console.log('🛑 Received SIGINT, shutting down gracefully...');
-            bot.stop('SIGINT');
-            process.exit(0);
-        });
-
-        process.once('SIGTERM', () => {
-            console.log('🛑 Received SIGTERM, shutting down gracefully...');
-            bot.stop('SIGTERM');
-            process.exit(0);
+        // 2. Start Express Server
+        console.log(`🌐 Starting Express server on port ${PORT}...`);
+        app.listen(PORT, () => {
+            console.log(`${startString} (Web Dashboard on Port ${PORT})`);
+            console.log(`📊 Dashboard API available at http://localhost:${PORT}`);
         });
 
     } catch (error) {
         console.error('❌ Failed to start application:', error);
         process.exit(1);
     }
-}
+};
 
 // Start the application
-if (require.main === module) {
-    startApplication();
-}
+startApplication();
 
-module.exports = {
-    startApplication,
-    bot
+// Graceful Stop
+const gracefulShutdown = (signal) => {
+    console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
+    bot.stop(signal);
+    process.exit(0);
 };
+
+process.once('SIGINT', () => gracefulShutdown('SIGINT'));
+process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
