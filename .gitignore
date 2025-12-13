@@ -1,4 +1,22 @@
+<<<<<<< HEAD
+src/modules/playground.js
+node_modules
+#documentation
+FILING_PROCESS_DIAGRAM.md
+GST_COMPLIANCE_VERIFICATION.md
+GSTR1_IMPLEMENTATION.md
+MOBILE_TESTING_CHECKLIST.md
+PROGRESS_TRACKER.md
+QUICK_REFERENCE.txt
+API_INTEGRATION_GUIDE.md
+=======
 node_modules/
 .env
 data/*.db
 .DS_Store
+*.md
+reset-database.js
+test-api.js
+test-otp.js
+verify-setup.js
+>>>>>>> sanni
