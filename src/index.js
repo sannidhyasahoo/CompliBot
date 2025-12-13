@@ -1,45 +1,74 @@
-import bot from './bot.js';
-import app from './server.js'; // Import the Express App
-import dotenv from 'dotenv';
+const { initDB } = require('./db');
+const bot = require('./bot');
+const config = require('./config/env');
 
+// Configuration from centralized config
+const NODE_ENV = config.server.nodeEnv;
+const LOG_LEVEL = config.logging.level;
 
-
-// Load environment variables
-dotenv.config();
-
-const startString = '🚀 CompliBot is online...';
-const PORT = process.env.PORT || 3000;
-
-// Startup function with proper error handling
-const startApplication = async () => {
+// Initialize application
+async function startApplication() {
     try {
-        // 1. Start Bot first
-        console.log('🤖 Starting Telegram Bot...');
-        await bot.launch();
-        console.log('✅ Telegram Bot connected successfully');
+        console.log('🚀 Starting CompliBot Application...');
+        console.log(`🌍 Environment: ${NODE_ENV}`);
+        console.log(`📊 Log Level: ${LOG_LEVEL}`);
 
-        // 2. Start Express Server
-        console.log(`🌐 Starting Express server on port ${PORT}...`);
-        app.listen(PORT, () => {
-            console.log(`${startString} (Web Dashboard on Port ${PORT})`);
-            console.log(`📊 Dashboard API available at http://localhost:${PORT}`);
+        // Initialize database
+        console.log('📊 Initializing database...');
+        await initDB();
+
+        // Check if bot token is available
+        if (!config.telegram.botToken) {
+            console.log('⚠️  Telegram bot token not configured. Skipping bot startup.');
+            console.log('💡 To enable the bot, add TELEGRAM_BOT_TOKEN to your .env file');
+            return;
+        }
+
+        // Start Telegram bot
+        console.log('🤖 Starting Telegram bot...');
+        await bot.launch();
+
+        console.log('✅ CompliBot is running successfully!');
+        console.log('📋 Available services:');
+        console.log('   • Telegram Bot: Active');
+        console.log('   • Database: Connected');
+        console.log('   • GST Processing: Ready');
+        console.log('   • Multilingual Support: English, Hindi, Telugu');
+
+        // Graceful shutdown
+        process.once('SIGINT', () => {
+            console.log('🛑 Received SIGINT, shutting down gracefully...');
+            bot.stop('SIGINT');
+            process.exit(0);
+        });
+
+        process.once('SIGTERM', () => {
+            console.log('🛑 Received SIGTERM, shutting down gracefully...');
+            bot.stop('SIGTERM');
+            process.exit(0);
         });
 
     } catch (error) {
         console.error('❌ Failed to start application:', error);
+
+        if (error.message.includes('401: Unauthorized')) {
+            console.error('💡 Please check your TELEGRAM_BOT_TOKEN in the .env file');
+        } else if (error.message.includes('GOOGLE_AI_API_KEY')) {
+            console.error('💡 Please check your GOOGLE_AI_API_KEY in the .env file');
+        } else if (error.message.includes('Database')) {
+            console.error('💡 Please check your database configuration in the .env file');
+        }
+
         process.exit(1);
     }
-};
+}
 
 // Start the application
-startApplication();
+if (require.main === module) {
+    startApplication();
+}
 
-// Graceful Stop
-const gracefulShutdown = (signal) => {
-    console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
-    bot.stop(signal);
-    process.exit(0);
+module.exports = {
+    startApplication,
+    bot
 };
-
-process.once('SIGINT', () => gracefulShutdown('SIGINT'));
-process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
