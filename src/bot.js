@@ -1,59 +1,24 @@
 const { Telegraf, session, Scenes } = require('telegraf');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const config = require('./config/env');
 const { getUser, addUser } = require('./db/index');
-const { validateGSTIN } = require('./modules/gstHelper');
+const { validateGSTIN, getStateCode } = require('./modules/gstHelper');
+const onboardingScene = require('./scenes/onboarding');
+
+// Load environment variables
+require('dotenv').config();
 
 // Initialize Google AI
-const genAI = new GoogleGenerativeAI(config.googleAI.apiKey);
-const model = genAI.getGenerativeModel({ model: config.googleAI.modelName });
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "AIzaSyAa53MAoT_Zn_lJcqwUrH_qz36abpjUYOg");
+const model = genAI.getGenerativeModel({ model: process.env.GOOGLE_AI_MODEL || "gemini-2.5-flash-lite" });
 
 // Language support
 const languages = {
     en: {
-        welcome: "🙏 Welcome to CompliBot! I'll help you with GST compliance.\n\nPlease choose your preferred language:",
-        onboarding_start: "Let's get you registered! I'll need some basic information about your business.",
-        ask_trade_name: "📝 What is your business/trade name?",
-        ask_legal_name: "🏢 What is your legal business name? (Optional - press /skip if same as trade name)",
-        ask_gstin: "🔢 Please enter your 15-digit GSTIN:",
-        ask_state: "📍 Which state is your business registered in? (Enter 2-digit state code, e.g., 29 for Karnataka)",
-        invalid_gstin: "❌ Invalid GSTIN format. Please enter a valid 15-digit GSTIN (e.g., 29AAACH7409R1Z2)",
-        invalid_state: "❌ Invalid state code. Please enter a valid 2-digit state code (e.g., 29 for Karnataka)",
-        registration_success: "✅ Registration successful! Welcome to CompliBot, {tradeName}!\n\n📋 Your Details:\nGSTIN: {gstin}\nTrade Name: {tradeName}\nState: {stateCode}\n\nYou can now:\n• Upload invoices for processing\n• Get GST compliance help\n• Ask questions about GST",
-        help_message: "🤖 I can help you with:\n\n📄 Invoice Processing - Upload invoice images\n📊 GST Calculations - Tax calculations and validations\n❓ GST Questions - Ask me anything about GST\n📋 Filing Status - Check your compliance status\n\nJust type your question or upload an invoice image!",
+        welcome: "🙏 Welcome to CompliBot! I'll help you with GST compliance.",
+        help_message: "🤖 I can help you with:\n\n📄 **Invoice Processing** - Upload invoice images\n📊 **GST Calculations** - Tax calculations and validations\n📱 **NIL Return Filing** - Easy SMS filing for NIL returns\n❓ **GST Questions** - Ask me anything about GST\n📋 **Filing Status** - Check your compliance status\n\n💡 **Quick Actions:**\n• Upload invoice → Get JSON automatically\n• Type 'nil' or /nil → File NIL return via SMS\n• Type 'json' → Download GST return JSON\n• Use /commands for all available commands",
         processing: "⏳ Processing your request...",
         error: "❌ Sorry, something went wrong. Please try again.",
-        skip: "⏭️ Skipped"
-    },
-    hi: {
-        welcome: "🙏 कंप्लाईबॉट में आपका स्वागत है! मैं आपकी जीएसटी अनुपालन में मदद करूंगा।\n\nकृपया अपनी पसंदीदा भाषा चुनें:",
-        onboarding_start: "आइए आपका पंजीकरण करते हैं! मुझे आपके व्यवसाय के बारे में कुछ बुनियादी जानकारी चाहिए।",
-        ask_trade_name: "📝 आपका व्यापारिक/व्यवसायिक नाम क्या है?",
-        ask_legal_name: "🏢 आपका कानूनी व्यवसायिक नाम क्या है? (वैकल्पिक - यदि व्यापारिक नाम के समान है तो /skip दबाएं)",
-        ask_gstin: "🔢 कृपया अपना 15-अंकीय जीएसटीआईएन दर्ज करें:",
-        ask_state: "📍 आपका व्यवसाय किस राज्य में पंजीकृत है? (2-अंकीय राज्य कोड दर्ज करें, जैसे कर्नाटक के लिए 29)",
-        invalid_gstin: "❌ अमान्य जीएसटीआईएन प्रारूप। कृपया एक वैध 15-अंकीय जीएसटीआईएन दर्ज करें (जैसे, 29AAACH7409R1Z2)",
-        invalid_state: "❌ अमान्य राज्य कोड। कृपया एक वैध 2-अंकीय राज्य कोड दर्ज करें (जैसे, कर्नाटक के लिए 29)",
-        registration_success: "✅ पंजीकरण सफल! कंप्लाईबॉट में आपका स्वागत है, {tradeName}!\n\n📋 आपका विवरण:\nजीएसटीआईएन: {gstin}\nव्यापारिक नाम: {tradeName}\nराज्य: {stateCode}\n\nअब आप कर सकते हैं:\n• प्रसंस्करण के लिए चालान अपलोड करें\n• जीएसटी अनुपालन सहायता प्राप्त करें\n• जीएसटी के बारे में प्रश्न पूछें",
-        help_message: "🤖 मैं आपकी इनमें मदद कर सकता हूं:\n\n📄 चालान प्रसंस्करण - चालान छवियां अपलोड करें\n📊 जीएसटी गणना - कर गणना और सत्यापन\n❓ जीएसटी प्रश्न - जीएसटी के बारे में कुछ भी पूछें\n📋 फाइलिंग स्थिति - अपनी अनुपालन स्थिति जांचें\n\nबस अपना प्रश्न टाइप करें या चालान छवि अपलोड करें!",
-        processing: "⏳ आपके अनुरोध को संसाधित कर रहा हूं...",
-        error: "❌ क्षमा करें, कुछ गलत हुआ। कृपया पुनः प्रयास करें।",
-        skip: "⏭️ छोड़ दिया गया"
-    },
-    te: {
-        welcome: "🙏 కంప్లైబాట్‌కు స్వాగతం! నేను మీ GST అనుపాలనలో సహాయం చేస్తాను।\n\nదయచేసి మీ ఇష్టమైన భాషను ఎంచుకోండి:",
-        onboarding_start: "మిమ్మల్ని నమోదు చేద్దాం! మీ వ్యాపారం గురించి కొంత ప్రాథమిక సమాచారం అవసరం.",
-        ask_trade_name: "📝 మీ వ్యాపార/వాణిజ్య పేరు ఏమిటి?",
-        ask_legal_name: "🏢 మీ చట్టపరమైన వ్యాపార పేరు ఏమిటి? (ఐచ్ఛికం - వాణిజ్య పేరు వలెనే ఉంటే /skip నొక్కండి)",
-        ask_gstin: "🔢 దయచేసి మీ 15-అంకెల GSTIN ను నమోదు చేయండి:",
-        ask_state: "📍 మీ వ్యాపారం ఏ రాష్ట్రంలో నమోదు చేయబడింది? (2-అంకెల రాష్ట్ర కోడ్ నమోదు చేయండి, ఉదా., కర్ణాటక కోసం 29)",
-        invalid_gstin: "❌ చెల్లని GSTIN ఫార్మాట్. దయచేసి చెల్లుబాటు అయ్యే 15-అంకెల GSTIN ను నమోదు చేయండి (ఉదా., 29AAACH7409R1Z2)",
-        invalid_state: "❌ చెల్లని రాష్ట్ర కోడ్. దయచేసి చెల్లుబాటు అయ్యే 2-అంకెల రాష్ట్ర కోడ్ ను నమోదు చేయండి (ఉదా., కర్ణాటక కోసం 29)",
-        registration_success: "✅ నమోదు విజయవంతం! కంప్లైబాట్‌కు స్వాగతం, {tradeName}!\n\n📋 మీ వివరాలు:\nGSTIN: {gstin}\nవాణిజ్య పేరు: {tradeName}\nరాష్ట్రం: {stateCode}\n\nఇప్పుడు మీరు చేయగలరు:\n• ప్రాసెసింగ్ కోసం ఇన్‌వాయిస్‌లను అప్‌లోడ్ చేయండి\n• GST అనుపాలన సహాయం పొందండి\n• GST గురించి ప్రశ్నలు అడగండి",
-        help_message: "🤖 నేను మీకు ఇవిటిలో సహాయం చేయగలను:\n\n📄 ఇన్‌వాయిస్ ప్రాసెసింగ్ - ఇన్‌వాయిస్ చిత్రాలను అప్‌లోడ్ చేయండి\n📊 GST లెక్కలు - పన్ను లెక్కలు మరియు ధృవీకరణలు\n❓ GST ప్రశ్నలు - GST గురించి ఏదైనా అడగండి\n📋 ఫైలింగ్ స్థితి - మీ అనుపాలన స్థితిని తనిఖీ చేయండి\n\nమీ ప్రశ్నను టైప్ చేయండి లేదా ఇన్‌వాయిస్ చిత్రాన్ని అప్‌లోడ్ చేయండి!",
-        processing: "⏳ మీ అభ్యర్థనను ప్రాసెస్ చేస్తున్నాను...",
-        error: "❌ క్షమించండి, ఏదో తప్పు జరిగింది. దయచేసి మళ్లీ ప్రయత్నించండి.",
-        skip: "⏭️ దాటవేయబడింది"
+        not_registered: "Please register first using /start"
     }
 };
 
@@ -71,180 +36,13 @@ const stateNames = {
     '36': 'Telangana', '37': 'Andhra Pradesh (New)', '38': 'Ladakh'
 };
 
-// Create onboarding scene
-const onboardingScene = new Scenes.WizardScene(
-    'onboarding',
-    // Step 1: Language selection
-    async (ctx) => {
-        const keyboard = {
-            inline_keyboard: [
-                [
-                    { text: '🇮🇳 English', callback_data: 'lang_en' },
-                    { text: '🇮🇳 हिंदी', callback_data: 'lang_hi' }
-                ],
-                [
-                    { text: '🇮🇳 తెలుగు', callback_data: 'lang_te' }
-                ]
-            ]
-        };
-
-        await ctx.reply(languages.en.welcome, { reply_markup: keyboard });
-        return ctx.wizard.next();
-    },
-
-    // Step 2: Handle language selection and ask for trade name
-    async (ctx) => {
-        if (ctx.callbackQuery) {
-            const lang = ctx.callbackQuery.data.split('_')[1];
-            ctx.session.language = lang;
-            await ctx.answerCbQuery();
-            await ctx.editMessageText(languages[lang].onboarding_start);
-            await ctx.reply(languages[lang].ask_trade_name);
-        } else {
-            // Default to English if no callback
-            ctx.session.language = 'en';
-            await ctx.reply(languages.en.ask_trade_name);
-        }
-        return ctx.wizard.next();
-    },
-
-    // Step 3: Get trade name and ask for legal name
-    async (ctx) => {
-        const lang = ctx.session.language || 'en';
-        if (!ctx.message?.text) {
-            await ctx.reply(languages[lang].ask_trade_name);
-            return;
-        }
-
-        ctx.session.tradeName = ctx.message.text.trim();
-        await ctx.reply(languages[lang].ask_legal_name);
-        return ctx.wizard.next();
-    },
-
-    // Step 4: Get legal name and ask for GSTIN
-    async (ctx) => {
-        const lang = ctx.session.language || 'en';
-
-        if (ctx.message?.text === '/skip') {
-            ctx.session.legalName = ctx.session.tradeName;
-            await ctx.reply(languages[lang].skip);
-        } else if (ctx.message?.text) {
-            ctx.session.legalName = ctx.message.text.trim();
-        } else {
-            await ctx.reply(languages[lang].ask_legal_name);
-            return;
-        }
-
-        await ctx.reply(languages[lang].ask_gstin);
-        return ctx.wizard.next();
-    },
-
-    // Step 5: Get GSTIN and ask for state
-    async (ctx) => {
-        const lang = ctx.session.language || 'en';
-        if (!ctx.message?.text) {
-            await ctx.reply(languages[lang].ask_gstin);
-            return;
-        }
-
-        const gstin = ctx.message.text.trim().toUpperCase();
-
-        if (!validateGSTIN(gstin)) {
-            await ctx.reply(languages[lang].invalid_gstin);
-            return;
-        }
-
-        ctx.session.gstin = gstin;
-
-        // Create state selection keyboard
-        const stateKeyboard = {
-            inline_keyboard: [
-                [
-                    { text: '29 - Karnataka', callback_data: 'state_29' },
-                    { text: '27 - Maharashtra', callback_data: 'state_27' }
-                ],
-                [
-                    { text: '07 - Delhi', callback_data: 'state_07' },
-                    { text: '33 - Tamil Nadu', callback_data: 'state_33' }
-                ],
-                [
-                    { text: '36 - Telangana', callback_data: 'state_36' },
-                    { text: '24 - Gujarat', callback_data: 'state_24' }
-                ],
-                [
-                    { text: '📝 Enter manually', callback_data: 'state_manual' }
-                ]
-            ]
-        };
-
-        await ctx.reply(languages[lang].ask_state, { reply_markup: stateKeyboard });
-        return ctx.wizard.next();
-    },
-
-    // Step 6: Get state and complete registration
-    async (ctx) => {
-        const lang = ctx.session.language || 'en';
-        let stateCode;
-
-        if (ctx.callbackQuery) {
-            if (ctx.callbackQuery.data === 'state_manual') {
-                await ctx.answerCbQuery();
-                await ctx.editMessageText('📝 Please enter your 2-digit state code (e.g., 29 for Karnataka):');
-                return; // Wait for manual input
-            } else {
-                stateCode = ctx.callbackQuery.data.split('_')[1];
-                await ctx.answerCbQuery();
-            }
-        } else if (ctx.message?.text) {
-            stateCode = ctx.message.text.trim();
-        } else {
-            await ctx.reply(languages[lang].ask_state);
-            return;
-        }
-
-        // Validate state code
-        if (!stateCode || stateCode.length !== 2 || !/^\d{2}$/.test(stateCode)) {
-            await ctx.reply(languages[lang].invalid_state);
-            return;
-        }
-
-        try {
-            // Save user to database
-            const userData = {
-                telegram_chat_id: ctx.chat.id,
-                gstin: ctx.session.gstin,
-                trade_name: ctx.session.tradeName,
-                legal_name: ctx.session.legalName,
-                state_code: stateCode
-            };
-
-            await addUser(userData);
-
-            const successMessage = languages[lang].registration_success
-                .replace('{tradeName}', ctx.session.tradeName)
-                .replace('{gstin}', ctx.session.gstin)
-                .replace('{stateCode}', `${stateCode} - ${stateNames[stateCode] || 'Unknown'}`);
-
-            await ctx.reply(successMessage);
-
-            // Clear session data
-            ctx.session = {};
-
-            return ctx.scene.leave();
-        } catch (error) {
-            console.error('Registration error:', error);
-            await ctx.reply(languages[lang].error);
-        }
-    }
-);
-
 // Create the bot
-const bot = new Telegraf(config.telegram.botToken);
+const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
 // Create stage and register scenes
 const stage = new Scenes.Stage([onboardingScene]);
 
-// Middleware
+// Session middleware
 bot.use(session());
 bot.use(stage.middleware());
 
@@ -258,24 +56,87 @@ const getUserLanguage = async (chatId) => {
     }
 };
 
-// Helper function to detect language from text
-const detectLanguage = (text) => {
-    // Simple language detection based on script
-    if (/[\u0900-\u097F]/.test(text)) return 'hi'; // Devanagari script
-    if (/[\u0C00-\u0C7F]/.test(text)) return 'te'; // Telugu script
-    return 'en'; // Default to English
+// Fallback responses when AI is unavailable
+const getFallbackResponse = (question) => {
+    const q = question.toLowerCase();
+
+    if (q.includes('rate') || q.includes('gst rate')) {
+        return "📊 **Common GST Rates in India:**\n\n" +
+            "• **5%**: Essential items (rice, wheat, medicines)\n" +
+            "• **12%**: Processed foods, computers\n" +
+            "• **18%**: Most goods and services\n" +
+            "• **28%**: Luxury items (cars, tobacco)\n" +
+            "• **0%**: Exempt items (fresh fruits, vegetables)\n\n" +
+            "For specific items, please check the official GST rate finder.";
+    }
+
+    if (q.includes('calculate') || q.includes('calculation')) {
+        return "🧮 **GST Calculation:**\n\n" +
+            "**For Intra-State (within same state):**\n" +
+            "• CGST = (Amount × Rate) ÷ 2\n" +
+            "• SGST = (Amount × Rate) ÷ 2\n\n" +
+            "**For Inter-State (different states):**\n" +
+            "• IGST = Amount × Rate\n\n" +
+            "**Example:** ₹1000 at 18%\n" +
+            "• Intra-state: CGST ₹90 + SGST ₹90 = ₹180\n" +
+            "• Inter-state: IGST ₹180";
+    }
+
+    if (q.includes('file') || q.includes('filing') || q.includes('return') || q.includes('nil')) {
+        return "📋 **GST Filing Information:**\n\n" +
+            "• **GSTR-1**: Monthly/Quarterly sales return\n" +
+            "• **GSTR-3B**: Monthly summary return\n" +
+            "• **Due dates**: 11th, 20th of following month\n" +
+            "• **NIL returns**: Can be filed via SMS\n\n" +
+            "📱 **Quick NIL Return:**\n" +
+            "• Type 'nil' or use /nil command\n" +
+            "• Click the SMS link to file instantly\n" +
+            "• Get 6-digit code and confirm\n\n" +
+            "Upload invoice images for automatic JSON generation!";
+    }
+
+    if (q.includes('invoice') || q.includes('json')) {
+        return "📄 **Invoice Processing:**\n\n" +
+            "1. Upload your invoice image\n" +
+            "2. I'll extract GST data automatically\n" +
+            "3. Type 'json' to get GST return format\n" +
+            "4. Download the JSON for filing\n\n" +
+            "Supported formats: JPG, PNG, PDF";
+    }
+
+    // Default response
+    return "🤖 **CompliBot Help:**\n\n" +
+        "I can help you with:\n" +
+        "• **Invoice Processing** - Upload images for GST data extraction\n" +
+        "• **GST Calculations** - Tax calculations and rates\n" +
+        "• **Filing Guidance** - Return filing procedures\n" +
+        "• **JSON Generation** - GST return format creation\n\n" +
+        "Try uploading an invoice image or ask specific GST questions!";
 };
 
-// Helper function to get AI response in user's language
-const getAIResponse = async (question, userLanguage = 'en') => {
-    try {
-        const languagePrompt = {
-            en: "You are a helpful GST (Goods and Services Tax) compliance assistant for Indian businesses. Answer the following question in English:",
-            hi: "आप भारतीय व्यवसायों के लिए एक सहायक जीएसटी (वस्तु एवं सेवा कर) अनुपालन सहायक हैं। निम्नलिखित प्रश्न का उत्तर हिंदी में दें:",
-            te: "మీరు భారతీయ వ్యాపారాల కోసం సహాయక GST (వస్తువులు మరియు సేవల పన్ను) అనుపాలన సహాయకుడు. కింది ప్రశ్నకు తెలుగులో సమాధానం ఇవ్వండి:"
-        };
+// Rate limiting for AI calls
+let lastAICall = 0;
+const AI_CALL_INTERVAL = 2000; // 2 seconds between calls
 
-        const prompt = `${languagePrompt[userLanguage]} ${question}
+const canMakeAICall = () => {
+    const now = Date.now();
+    if (now - lastAICall < AI_CALL_INTERVAL) {
+        return false;
+    }
+    lastAICall = now;
+    return true;
+};
+
+// Helper function to get AI response with quota handling
+const getAIResponse = async (question, userLanguage = 'en') => {
+    // Check rate limiting
+    if (!canMakeAICall()) {
+        console.log('Rate limiting AI call');
+        return getFallbackResponse(question);
+    }
+
+    try {
+        const prompt = `You are a helpful GST (Goods and Services Tax) compliance assistant for Indian businesses. Answer the following question in English: ${question}
         
         Please provide accurate, helpful information about GST compliance, tax calculations, filing procedures, or related business matters. Keep the response concise and practical.`;
 
@@ -284,12 +145,16 @@ const getAIResponse = async (question, userLanguage = 'en') => {
         return response.text();
     } catch (error) {
         console.error('AI response error:', error);
-        const errorMessages = {
-            en: "I'm sorry, I couldn't process your question right now. Please try again later.",
-            hi: "क्षमा करें, मैं अभी आपके प्रश्न को संसाधित नहीं कर सका। कृपया बाद में पुनः प्रयास करें।",
-            te: "క్షమించండి, నేను ప్రస్తుతం మీ ప్రశ్నను ప్రాసెస్ చేయలేకపోయాను. దయచేసి తర్వాత మళ్లీ ప్రయత్నించండి."
-        };
-        return errorMessages[userLanguage] || errorMessages.en;
+
+        // Handle specific quota errors
+        if (error.status === 429 || error.message?.includes('quota')) {
+            console.log('Quota exceeded, using fallback response');
+            return getFallbackResponse(question) + "\n\n⚠️ AI quota exceeded. Using fallback responses.";
+        }
+
+        // Handle other errors - use fallback
+        console.log('AI error, using fallback response');
+        return getFallbackResponse(question);
     }
 };
 
@@ -299,8 +164,7 @@ bot.start(async (ctx) => {
         const existingUser = await getUser(ctx.chat.id);
 
         if (existingUser) {
-            const lang = existingUser.language || 'en';
-            await ctx.reply(`👋 Welcome back, ${existingUser.trade_name}!\n\n${languages[lang].help_message}`);
+            await ctx.reply(`👋 Welcome back, ${existingUser.trade_name}!\n\n${languages.en.help_message}`);
         } else {
             await ctx.scene.enter('onboarding');
         }
@@ -313,8 +177,7 @@ bot.start(async (ctx) => {
 // Help command
 bot.help(async (ctx) => {
     try {
-        const lang = await getUserLanguage(ctx.chat.id);
-        await ctx.reply(languages[lang].help_message);
+        await ctx.reply(languages.en.help_message);
     } catch (error) {
         console.error('Help command error:', error);
         await ctx.reply(languages.en.help_message);
@@ -337,30 +200,252 @@ bot.command('status', async (ctx) => {
     }
 });
 
+// NIL return command
+bot.command('nil', async (ctx) => {
+    try {
+        const user = await getUser(ctx.chat.id);
+        if (!user) {
+            await ctx.reply('❌ Please register first using /start');
+            return;
+        }
+
+        const { generateQuickNIL } = require('./tools/nilReturnTool');
+        const result = await generateQuickNIL({ chatId: ctx.chat.id });
+
+        if (result.success) {
+            const filing = result.data.filing;
+            const period = result.data.period;
+
+            let message = `📱 *NIL Return SMS Ready!*\n\n`;
+            message += `🏢 **Business:** ${result.data.taxpayer.tradeName}\n`;
+            message += `🔢 **GSTIN:** \`${result.data.taxpayer.gstin}\`\n`;
+            message += `📅 **Period:** ${period.display}\n`;
+            message += `📋 **Return Type:** ${period.returnType}\n\n`;
+            message += `📱 **Click the button below to send SMS:**\n\n`;
+            message += `**Step 1:** Tap "Send SMS" → Your SMS app opens\n`;
+            message += `**Step 2:** Review and send to 14409\n`;
+            message += `**Step 3:** Wait for 6-digit code\n`;
+            message += `**Step 4:** Use /confirm <code> command\n\n`;
+            message += `⚠️ **Use your registered mobile number only**`;
+
+            const keyboard = {
+                inline_keyboard: [
+                    [
+                        {
+                            text: '📱 Send NIL Return SMS',
+                            url: filing.shortUrl || filing.deepLinks.primary
+                        }
+                    ],
+                    [
+                        { text: '📋 GSTR-1 NIL', callback_data: 'nil_gstr1' },
+                        { text: '❓ Help', callback_data: 'nil_help' }
+                    ]
+                ]
+            };
+
+            await ctx.reply(message, {
+                parse_mode: 'Markdown',
+                reply_markup: keyboard
+            });
+        } else {
+            await ctx.reply(`❌ ${result.message}`);
+        }
+    } catch (error) {
+        console.error('NIL command error:', error);
+        await ctx.reply('❌ Error generating NIL return. Please try again.');
+    }
+});
+
+// Confirm command for verification codes
+bot.command('confirm', async (ctx) => {
+    try {
+        const user = await getUser(ctx.chat.id);
+        if (!user) {
+            await ctx.reply('❌ Please register first using /start');
+            return;
+        }
+
+        const args = ctx.message.text.split(' ');
+        if (args.length < 2) {
+            await ctx.reply('❌ Please provide the 6-digit verification code.\n\nUsage: /confirm 123456');
+            return;
+        }
+
+        const verificationCode = args[1];
+        if (!/^\d{6}$/.test(verificationCode)) {
+            await ctx.reply('❌ Verification code must be exactly 6 digits.\n\nExample: /confirm 123456');
+            return;
+        }
+
+        const { generateConfirmationLink } = require('./tools/nilReturnTool');
+        const result = await generateConfirmationLink({
+            verificationCode: verificationCode,
+            returnType: 'GSTR-3B',
+            chatId: ctx.chat.id
+        });
+
+        if (result.success) {
+            const confirmation = result.data.confirmation;
+
+            let message = `✅ *Confirmation SMS Ready!*\n\n`;
+            message += `🔢 **Code:** ${verificationCode}\n`;
+            message += `📱 **Click below to send confirmation:**\n\n`;
+            message += `This will complete your NIL return filing.`;
+
+            const keyboard = {
+                inline_keyboard: [
+                    [
+                        {
+                            text: '📱 Send Confirmation SMS',
+                            url: confirmation.shortUrl || confirmation.deepLinks.primary
+                        }
+                    ]
+                ]
+            };
+
+            await ctx.reply(message, {
+                parse_mode: 'Markdown',
+                reply_markup: keyboard
+            });
+        } else {
+            await ctx.reply(`❌ ${result.message}`);
+        }
+    } catch (error) {
+        console.error('Confirm command error:', error);
+        await ctx.reply('❌ Error generating confirmation SMS. Please try again.');
+    }
+});
+
 // Handle text messages (questions)
 bot.on('text', async (ctx) => {
     try {
         const user = await getUser(ctx.chat.id);
         if (!user) {
-            await ctx.reply('Please register first using /start');
+            await ctx.reply(languages.en.not_registered);
             return;
         }
 
-        const userLanguage = user.language || detectLanguage(ctx.message.text) || 'en';
-        const processingMessage = languages[userLanguage].processing;
+        const messageText = ctx.message.text.toLowerCase().trim();
 
-        const processingMsg = await ctx.reply(processingMessage);
+        // Check for JSON-related requests
+        if (messageText === 'json' || messageText === 'get json' || messageText === 'show json' || messageText === 'download json') {
+            if (!ctx.session.lastInvoiceData) {
+                // Offer sample JSON when no invoice data is available
+                const keyboard = {
+                    inline_keyboard: [
+                        [
+                            { text: '📄 Get Sample JSON', callback_data: 'sample_json' },
+                            { text: '📤 Upload Invoice', callback_data: 'upload_help' }
+                        ]
+                    ]
+                };
 
-        const aiResponse = await getAIResponse(ctx.message.text, userLanguage);
+                await ctx.reply(
+                    '❌ No invoice data found.\n\n' +
+                    '💡 **Options:**\n' +
+                    '• Upload an invoice image to get actual JSON\n' +
+                    '• Get a sample GST return JSON for reference\n\n' +
+                    'Choose an option below:',
+                    {
+                        parse_mode: 'Markdown',
+                        reply_markup: keyboard
+                    }
+                );
+                return;
+            }
+
+            try {
+                const { generateGSTReturnFormat } = require('./tools/jsonGenerator');
+                const gstReturnData = generateGSTReturnFormat(ctx.session.lastInvoiceData);
+
+                // Send as file
+                const jsonString = JSON.stringify(gstReturnData, null, 2);
+                await ctx.replyWithDocument({
+                    source: Buffer.from(jsonString, 'utf8'),
+                    filename: `gst_return_${Date.now()}.json`
+                }, {
+                    caption: '📄 *GST Return JSON*\n\nComplete GST return format ready for filing with the GST portal.',
+                    parse_mode: 'Markdown'
+                });
+                return;
+            } catch (jsonError) {
+                console.error('JSON generation error:', jsonError);
+                await ctx.reply('❌ Error generating JSON. Please try processing the invoice again.');
+                return;
+            }
+        }
+
+        // Check for NIL return requests
+        if (messageText.includes('nil') || messageText.includes('file nil') || messageText.includes('nil return')) {
+            try {
+                const { generateQuickNIL } = require('./tools/nilReturnTool');
+                const result = await generateQuickNIL({ chatId: ctx.chat.id });
+
+                if (result.success) {
+                    const filing = result.data.filing;
+                    const period = result.data.period;
+
+                    let message = `📱 *NIL Return SMS Ready!*\n\n`;
+                    message += `🏢 **Business:** ${result.data.taxpayer.tradeName}\n`;
+                    message += `🔢 **GSTIN:** \`${result.data.taxpayer.gstin}\`\n`;
+                    message += `📅 **Period:** ${period.display}\n`;
+                    message += `📋 **Return Type:** ${period.returnType}\n\n`;
+                    message += `📱 **Click the button below to send SMS:**\n`;
+                    message += `The SMS will be sent to 14409 with your NIL return details.\n\n`;
+                    message += `⚠️ **Important:**\n`;
+                    message += `• Use your registered mobile number\n`;
+                    message += `• Wait for 6-digit verification code\n`;
+                    message += `• Send confirmation SMS with the code`;
+
+                    const keyboard = {
+                        inline_keyboard: [
+                            [
+                                {
+                                    text: '📱 Send NIL Return SMS',
+                                    url: filing.shortUrl || filing.deepLinks.primary
+                                }
+                            ],
+                            [
+                                { text: '❓ Help', callback_data: 'nil_help' },
+                                { text: '🔄 Different Period', callback_data: 'nil_custom' }
+                            ]
+                        ]
+                    };
+
+                    await ctx.reply(message, {
+                        parse_mode: 'Markdown',
+                        reply_markup: keyboard
+                    });
+                } else {
+                    await ctx.reply(`❌ ${result.message}`);
+                }
+                return;
+            } catch (error) {
+                console.error('NIL return error:', error);
+                await ctx.reply('❌ Error generating NIL return. Please try again.');
+                return;
+            }
+        }
+
+        // Handle regular GST questions
+        const processingMsg = await ctx.reply(languages.en.processing);
+
+        // Try AI response with fallback
+        let response;
+        try {
+            response = await getAIResponse(ctx.message.text);
+        } catch (error) {
+            console.error('AI processing failed:', error);
+            response = getFallbackResponse(ctx.message.text);
+        }
 
         // Delete processing message and send response
         await ctx.deleteMessage(processingMsg.message_id);
-        await ctx.reply(aiResponse);
+        await ctx.reply(response);
 
     } catch (error) {
         console.error('Text message error:', error);
-        const lang = await getUserLanguage(ctx.chat.id);
-        await ctx.reply(languages[lang].error);
+        await ctx.reply(languages.en.error);
     }
 });
 
@@ -369,18 +454,281 @@ bot.on(['photo', 'document'], async (ctx) => {
     try {
         const user = await getUser(ctx.chat.id);
         if (!user) {
-            await ctx.reply('Please register first using /start');
+            await ctx.reply(languages.en.not_registered);
             return;
         }
 
-        const userLanguage = user.language || 'en';
+        // Show processing message
+        const processingMsg = await ctx.reply('⏳ Processing your invoice with AI...');
 
-        await ctx.reply(`📄 Invoice received! Processing with AI...\n\n💡 For now, please use our web API at ${config.server.apiBaseUrl}/generate-gst-json to process invoice images.\n\nFull integration coming soon!`);
+        try {
+            // Get the largest photo or document
+            let fileId;
+            let mimeType = 'image/jpeg';
+
+            if (ctx.message.photo) {
+                const photos = ctx.message.photo;
+                fileId = photos[photos.length - 1].file_id;
+            } else if (ctx.message.document) {
+                fileId = ctx.message.document.file_id;
+                mimeType = ctx.message.document.mime_type || 'application/pdf';
+            }
+
+            if (!fileId) {
+                await ctx.editMessageText('❌ Could not process the file. Please try again.');
+                return;
+            }
+
+            // Get file from Telegram
+            const file = await ctx.telegram.getFile(fileId);
+            const fileUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+
+            // Download file
+            const fetch = require('node-fetch');
+            const response = await fetch(fileUrl);
+            const buffer = await response.buffer();
+
+            // Use the JSON generator tool
+            const { generateGSTReturnJSON } = require('./tools/jsonGenerator');
+
+            // Create a mock request object for the generator
+            const mockReq = {
+                file: {
+                    buffer: buffer,
+                    mimetype: mimeType
+                }
+            };
+
+            // Create a mock response object
+            let result = null;
+            const mockRes = {
+                json: (data) => { result = data; },
+                status: () => mockRes
+            };
+
+            // Call the generator
+            await generateGSTReturnJSON(mockReq, mockRes);
+
+            if (result && result.success) {
+                const extractedData = result.data.extractedInvoiceData;
+                const gstReturnData = result.data.gstReturnFormat;
+
+                // Store the data in session
+                ctx.session.lastInvoiceData = extractedData;
+
+                // Format response
+                const { supplier, recipient, invoice, items } = extractedData;
+                let message = '';
+
+                if (result.fallback) {
+                    message = `⚠️ *AI Processing Unavailable - Sample Data Generated*\n\n`;
+                    message += `🤖 AI quota exceeded. Here's a sample GST return format for reference:\n\n`;
+                } else {
+                    message = `✅ *Invoice processed successfully!*\n\n`;
+                }
+
+                // Supplier info
+                message += `📤 *Supplier:*\n`;
+                message += `• GSTIN: \`${supplier.gstin}\`\n`;
+                message += `• Name: ${supplier.legalName}\n\n`;
+
+                // Invoice info
+                message += `📄 *Invoice Details:*\n`;
+                message += `• Number: ${invoice.number}\n`;
+                message += `• Date: ${invoice.date}\n`;
+                message += `• Total Value: ₹${invoice.totalValue.toLocaleString('en-IN')}\n\n`;
+
+                // Items summary
+                message += `📦 *Items (${items.length}):*\n`;
+                items.forEach((item, index) => {
+                    message += `${index + 1}. ${item.description}\n`;
+                    message += `   • Taxable: ₹${item.taxableValue.toLocaleString('en-IN')} @ ${item.taxRate}%\n`;
+                });
+
+                message += `\n💾 *JSON Data Generated*\n`;
+                message += `Type "json" to get the complete GST return JSON format.`;
+
+                if (result.fallback) {
+                    message += `\n\n💡 *Note:* This is sample data. For actual invoice processing, please try again when AI service is available.`;
+                }
+
+                const keyboard = {
+                    inline_keyboard: [
+                        [
+                            { text: '📄 Get JSON', callback_data: 'get_json' },
+                            { text: '📊 View Summary', callback_data: 'view_summary' }
+                        ]
+                    ]
+                };
+
+                await ctx.editMessageText(message, {
+                    parse_mode: 'Markdown',
+                    reply_markup: keyboard
+                });
+            } else {
+                await ctx.editMessageText('❌ Failed to process invoice. Please ensure the image is clear and try again.');
+            }
+
+        } catch (processingError) {
+            console.error('Invoice processing error:', processingError);
+            await ctx.editMessageText('❌ Failed to process invoice. Please ensure the image is clear and try again.');
+        }
 
     } catch (error) {
         console.error('File upload error:', error);
-        const lang = await getUserLanguage(ctx.chat.id);
-        await ctx.reply(languages[lang].error);
+        await ctx.reply(languages.en.error);
+    }
+});
+
+// Handle callback queries (button presses)
+bot.on('callback_query', async (ctx) => {
+    try {
+        const data = ctx.callbackQuery.data;
+        await ctx.answerCbQuery();
+
+        if (data === 'get_json') {
+            if (!ctx.session.lastInvoiceData) {
+                await ctx.reply('❌ No invoice data found. Please upload an invoice first.');
+                return;
+            }
+
+            try {
+                const { generateGSTReturnFormat } = require('./tools/jsonGenerator');
+                const gstReturnData = generateGSTReturnFormat(ctx.session.lastInvoiceData);
+
+                // Send as file
+                const jsonString = JSON.stringify(gstReturnData, null, 2);
+                await ctx.replyWithDocument({
+                    source: Buffer.from(jsonString, 'utf8'),
+                    filename: `gst_return_${Date.now()}.json`
+                }, {
+                    caption: '📄 *GST Return JSON*\n\nComplete GST return format ready for filing with the GST portal.',
+                    parse_mode: 'Markdown'
+                });
+            } catch (error) {
+                console.error('JSON generation error:', error);
+                await ctx.reply('❌ Error generating JSON. Please try processing the invoice again.');
+            }
+        } else if (data === 'view_summary') {
+            if (!ctx.session.lastInvoiceData) {
+                await ctx.reply('❌ No invoice data found. Please upload an invoice first.');
+                return;
+            }
+
+            const data = ctx.session.lastInvoiceData;
+            const totalTaxable = data.items.reduce((sum, item) => sum + item.taxableValue, 0);
+            const totalTax = data.items.reduce((sum, item) => sum + (item.totalTax || 0), 0);
+
+            const summary = `📊 *Invoice Summary*\n\n` +
+                `📄 Invoice: ${data.invoice.number}\n` +
+                `📅 Date: ${data.invoice.date}\n` +
+                `💰 Taxable Value: ₹${totalTaxable.toLocaleString('en-IN')}\n` +
+                `💸 Total Tax: ₹${totalTax.toLocaleString('en-IN')}\n` +
+                `💵 Invoice Value: ₹${data.invoice.totalValue.toLocaleString('en-IN')}\n\n` +
+                `📦 Items: ${data.items.length}\n` +
+                `🏢 Supplier: ${data.supplier.legalName}\n` +
+                `🏪 Recipient: ${data.recipient.legalName}`;
+
+            await ctx.reply(summary, { parse_mode: 'Markdown' });
+        } else if (data === 'sample_json') {
+            try {
+                const { generateFallbackJSON } = require('./tools/jsonGenerator');
+                const fallbackData = generateFallbackJSON();
+
+                // Send as file
+                const jsonString = JSON.stringify(fallbackData.gstReturnFormat, null, 2);
+                await ctx.replyWithDocument({
+                    source: Buffer.from(jsonString, 'utf8'),
+                    filename: `sample_gst_return_${Date.now()}.json`
+                }, {
+                    caption: '📄 *Sample GST Return JSON*\n\n' +
+                        'This is a sample GST return format for reference.\n' +
+                        'Upload your invoice image to get actual data extracted.',
+                    parse_mode: 'Markdown'
+                });
+            } catch (error) {
+                console.error('Sample JSON error:', error);
+                await ctx.reply('❌ Error generating sample JSON. Please try again.');
+            }
+        } else if (data === 'upload_help') {
+            await ctx.reply(
+                '📤 *How to Upload Invoice:*\n\n' +
+                '1. Take a clear photo of your invoice\n' +
+                '2. Or scan the invoice as PDF\n' +
+                '3. Send the image/document to this chat\n' +
+                '4. I\'ll process it with AI and extract GST data\n' +
+                '5. Get your GST return JSON instantly!\n\n' +
+                '📋 **Supported formats:** JPG, PNG, PDF\n' +
+                '💡 **Tip:** Ensure text is clear and readable',
+                { parse_mode: 'Markdown' }
+            );
+        } else if (data === 'nil_help') {
+            const { getNILReturnHelp } = require('./tools/nilReturnTool');
+            const result = await getNILReturnHelp({ chatId: ctx.chat.id });
+
+            if (result.success) {
+                let message = `📱 *NIL Return Help*\n\n`;
+                message += result.data.instructions.join('\n') + '\n\n';
+                message += `**Common Issues:**\n`;
+                result.data.commonIssues.forEach(issue => {
+                    message += `❓ ${issue.issue}\n💡 ${issue.solution}\n\n`;
+                });
+
+                await ctx.reply(message, { parse_mode: 'Markdown' });
+            }
+        } else if (data === 'nil_gstr1') {
+            const { generateQuickNIL } = require('./tools/nilReturnTool');
+            const result = await generateQuickNIL({
+                chatId: ctx.chat.id,
+                returnType: 'GSTR-1'
+            });
+
+            if (result.success) {
+                const filing = result.data.filing;
+                const period = result.data.period;
+
+                let message = `📱 *GSTR-1 NIL Return SMS Ready!*\n\n`;
+                message += `🏢 **Business:** ${result.data.taxpayer.tradeName}\n`;
+                message += `🔢 **GSTIN:** \`${result.data.taxpayer.gstin}\`\n`;
+                message += `📅 **Period:** ${period.display}\n`;
+                message += `📋 **Return Type:** GSTR-1\n\n`;
+                message += `📱 **Click below to send SMS:**`;
+
+                const keyboard = {
+                    inline_keyboard: [
+                        [
+                            {
+                                text: '📱 Send GSTR-1 NIL SMS',
+                                url: filing.shortUrl || filing.deepLinks.primary
+                            }
+                        ]
+                    ]
+                };
+
+                await ctx.reply(message, {
+                    parse_mode: 'Markdown',
+                    reply_markup: keyboard
+                });
+            } else {
+                await ctx.reply(`❌ ${result.message}`);
+            }
+        } else if (data === 'nil_custom') {
+            await ctx.reply(
+                '📅 *Custom Period NIL Return*\n\n' +
+                'To file NIL return for a specific period, use:\n\n' +
+                '`/nil MMYYYY`\n\n' +
+                'Examples:\n' +
+                '• `/nil 112024` - November 2024\n' +
+                '• `/nil 102024` - October 2024\n' +
+                '• `/nil 092024` - September 2024\n\n' +
+                'Or just type: "File NIL return for November 2024"',
+                { parse_mode: 'Markdown' }
+            );
+        }
+
+    } catch (error) {
+        console.error('Callback query error:', error);
+        await ctx.reply('❌ Error processing request. Please try again.');
     }
 });
 

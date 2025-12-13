@@ -6,9 +6,8 @@
 const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
-const config = require('./src/config/env');
 
-const API_BASE_URL = config.server.apiBaseUrl;
+const API_BASE_URL = 'http://localhost:8080';
 
 /**
  * Example: Generate GST return JSON from invoice image

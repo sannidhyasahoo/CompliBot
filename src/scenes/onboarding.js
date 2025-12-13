@@ -1,27 +1,31 @@
-import { Scenes } from 'telegraf';
-import { addUser } from '../db/index.js'; // Import the helper we wrote earlier
+const { Scenes } = require('telegraf');
+const { addUser } = require('../db/index');
+const AIOrchestrator = require('../ai/orchestrator');
 
 const { WizardScene } = Scenes;
+
+// Initialize AI Orchestrator for contextual help
+const aiOrchestrator = new AIOrchestrator();
 
 const onboardingScene = new WizardScene(
     'onboarding', // Scene ID
 
     // ===========================
-    // STEP 1: Ask for Trade Name
+    // STEP 1: Welcome & Ask for Trade Name
     // ===========================
-    (ctx) => {
-        ctx.reply('👋 Welcome to CompliBot! \n\nI see you are new here. Let\'s get you set up.\n\nFirst, what is your **Business Name**? (e.g., Ramesh General Store)');
+    async (ctx) => {
+        await ctx.reply('🙏 Welcome to CompliBot - Your Intelligent GST Assistant!\n\n🤖 I\'m powered by advanced AI and can understand natural language. I\'ll help you with GST compliance, calculations, SMS filing, and much more!\n\nLet\'s get you set up so I can provide personalized assistance.\n\nFirst, what is your **Business/Trade Name**?\n\n📝 Example: "Ramesh General Store" or "ABC Enterprises"', { parse_mode: 'Markdown' });
         return ctx.wizard.next();
     },
 
     // ===========================
     // STEP 2: Ask for GSTIN
     // ===========================
-    (ctx) => {
+    async (ctx) => {
         // Save the previous answer (Business Name) to session state
-        ctx.wizard.state.trade_name = ctx.message.text;
+        ctx.wizard.state.trade_name = ctx.message.text.trim();
 
-        ctx.reply('Got it. Now, please enter your **15-digit GSTIN**.');
+        await ctx.reply(`Perfect! Nice to meet you, **${ctx.wizard.state.trade_name}**! 🏢\n\nNow I need your **15-digit GSTIN** to provide accurate GST assistance.\n\n🔢 Please enter your GSTIN:\n\n📝 Example: 29ABCDE1234F1Z5`, { parse_mode: 'Markdown' });
         return ctx.wizard.next();
     },
 
@@ -53,12 +57,18 @@ const onboardingScene = new WizardScene(
         try {
             // Save to DB
             await addUser(newUser);
-            
-            ctx.reply(`✅ **Setup Complete!**\n\nBusiness: ${newUser.trade_name}\nGSTIN: ${newUser.gstin}\nState Code: ${stateCode}\n\n🎯 You can now:\n• Use /status to check your filings\n• Login to the web dashboard with your GSTIN\n\n🌐 **Web Dashboard**: Use your GSTIN to login and get OTP via this bot!`, { parse_mode: 'Markdown' });
+
+            await ctx.reply(`🎉 Welcome to CompliBot, ${newUser.trade_name}!\n\n📋 **Your Registration Details:**\n🏢 Business: ${newUser.trade_name}\n🔢 GSTIN: ${newUser.gstin}\n📍 State Code: ${stateCode}\n\n🤖 **I'm your intelligent GST compliance assistant!**\n\nI understand natural language, so just talk to me like you would to a human assistant:\n\n💬 **Try saying:**\n• "File NIL return for March 2024"\n• "Calculate GST on ₹5000 at 18%"\n• "What is GST rate for medicines?"\n• "Help me with GST compliance"\n\n📄 **For invoice processing:** Just upload an image and I'll extract the data automatically!\n\n🌟 **No commands to remember - just chat naturally!**`, { parse_mode: 'Markdown' });
+
+            // Send AI demo message after a short delay
+            setTimeout(async () => {
+                await ctx.reply('🤖 **Quick AI Demo!**\n\nTry asking me something right now:\n• "What is GST rate for rice?"\n• "Calculate GST on ₹1000 at 18%"\n• "File NIL return for this month"\n\nI\'ll understand and respond immediately! 🚀', { parse_mode: 'Markdown' });
+            }, 2000);
+
             return ctx.scene.leave(); // Exit the wizard
         } catch (err) {
             console.error('❌ Registration Error:', err);
-            
+
             if (err.message.includes('UNIQUE constraint failed: users.gstin')) {
                 ctx.reply('⚠️ This GSTIN is already registered. Use /status to check your details.');
             } else if (err.message.includes('UNIQUE constraint failed: users.telegram_chat_id')) {
@@ -73,4 +83,4 @@ const onboardingScene = new WizardScene(
     }
 );
 
-export default onboardingScene;
+module.exports = onboardingScene;

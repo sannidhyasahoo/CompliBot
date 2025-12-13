@@ -1,0 +1,17 @@
+{
+  "12345": {
+    "lastInvoiceData": {
+      "supplier": {
+        "gstin": "TEST123",
+        "legalName": "Test Supplier"
+      },
+      "invoice": {
+        "number": "INV001",
+        "totalValue": 1000
+      }
+    }
+  },
+  "5302162778": {
+    "__scenes": {}
+  }
+}

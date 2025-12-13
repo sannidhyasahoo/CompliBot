@@ -163,37 +163,17 @@ The API automatically:
 npm install
 ```
 
-2. **Configure Environment Variables:**
-```bash
-# Copy the example environment file
-cp .env.example .env
-```
-
-Edit the `.env` file with your configuration:
-
-**Required Variables:**
-- `GOOGLE_AI_API_KEY` - Your Google AI Studio API key
-- `TURSO_DATABASE_URL` - Database connection URL
-- `TURSO_AUTH_TOKEN` - Database authentication token
-
-**Optional Variables:**
-- `PORT` - Server port (default: 8080)
-- `NODE_ENV` - Environment mode (development/production)
-- `TELEGRAM_BOT_TOKEN` - For bot features
-- `MAX_FILE_SIZE` - Maximum upload size in bytes (default: 10MB)
-- `ALLOWED_FILE_TYPES` - Comma-separated MIME types
-- `GST_VERSION` - GST return format version
-- `DEFAULT_TAX_RATE` - Default tax rate percentage
-- `CORS_ORIGIN` - CORS allowed origins
+2. **Configure API Key:**
+Update the `API_KEY` in `src/tools/jsonGenerator.js` with your Google AI Studio API key.
 
 3. **Start Server:**
 ```bash
-npm start
+node src/server.js
 ```
 
 4. **Test API:**
 ```bash
-npm test
+node test-api.js
 ```
 
 ## Usage Example

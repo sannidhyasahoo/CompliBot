@@ -4,7 +4,7 @@
  * Solves the problem of SMS deep links not working in Telegram/WhatsApp
  */
 
-import * as smsHelper from './smsHelper.js';
+const smsHelper = require('./smsHelper');
 
 // SMS Deep Link API Configuration
 const SMS_API_BASE_URL = 'https://sms-link-generator.vercel.app';
@@ -19,7 +19,7 @@ const SMS_API_ANALYTICS_ENDPOINT = '/api/sms/analytics';
  * @param {string} message - SMS message text
  * @returns {Promise<Object>} API response with shortUrl and deepLink
  */
-export async function generateSMSShortLink(phone, message) {
+async function generateSMSShortLink(phone, message) {
     try {
         // For the GST short code 14409, we'll use it directly
         // The API validates phone numbers, but we'll handle the error gracefully
@@ -40,7 +40,7 @@ export async function generateSMSShortLink(phone, message) {
         }
 
         const result = await response.json();
-        
+
         if (!result.success) {
             throw new Error(result.error || 'Failed to generate SMS link');
         }
@@ -65,10 +65,10 @@ export async function generateSMSShortLink(phone, message) {
  * @param {string} shortId - Short link identifier
  * @returns {Promise<Object>} Analytics data
  */
-export async function getAnalytics(shortId) {
+async function getAnalytics(shortId) {
     try {
         const response = await fetch(`${SMS_API_BASE_URL}${SMS_API_ANALYTICS_ENDPOINT}/${shortId}`);
-        
+
         if (!response.ok) {
             throw new Error(`Analytics request failed: ${response.status}`);
         }
@@ -87,32 +87,32 @@ export async function getAnalytics(shortId) {
  * @param {string} month - Month in YYYY-MM or MMYYYY format
  * @returns {Promise<Object>} Complete SMS filing object with short URL
  */
-export async function createSMSFiling(gstin, month) {
+async function createSMSFiling(gstin, month) {
     // Validate inputs using original helper
     if (!smsHelper.validateGSTIN(gstin)) {
         throw new Error('Invalid GSTIN format');
     }
-    
+
     const formattedMonth = smsHelper.formatMonth(month);
     const smsBody = smsHelper.generateSMSString(gstin, formattedMonth);
-    
+
     // Generate short link via API
     const apiResult = await generateSMSShortLink('14409', smsBody);
-    
+
     // Get original deep links as fallback
     const originalLinks = smsHelper.generateSMSDeepLink(gstin, formattedMonth);
-    
+
     return {
         type: 'NIL',
         returnType: 'GSTR-3B',
         gstin: gstin.toUpperCase(),
         month: formattedMonth,
         smsBody: smsBody,
-        
+
         // ✅ PRIMARY LINK - Use this in Telegram!
         shortUrl: apiResult.shortUrl,
         shortId: apiResult.shortId,
-        
+
         // Fallback deep links (if API fails)
         deepLinks: {
             primary: apiResult.deepLink || originalLinks.standard,
@@ -123,9 +123,9 @@ export async function createSMSFiling(gstin, month) {
             displayText: `📱 Tap to send SMS to 14409`,
             recipient: '14409'
         },
-        
+
         description: smsHelper.getSMSDescription(gstin, month),
-        
+
         instructions: [
             '1. Tap the "Send SMS" button below',
             '2. Your SMS app will open with pre-filled message',
@@ -133,7 +133,7 @@ export async function createSMSFiling(gstin, month) {
             '4. You will receive a 6-digit verification code from 14409',
             '5. Return here and use /confirm command with the code'
         ],
-        
+
         // API status
         apiStatus: {
             available: !apiResult.fallback,
@@ -149,20 +149,20 @@ export async function createSMSFiling(gstin, month) {
  * @param {boolean} isQuarterly - Whether this is quarterly filing
  * @returns {Promise<Object>} Complete GSTR-1 filing object with short URL
  */
-export async function createGSTR1Filing(gstin, period, isQuarterly = false) {
+async function createGSTR1Filing(gstin, period, isQuarterly = false) {
     // Validate inputs
     if (!smsHelper.validateGSTIN(gstin)) {
         throw new Error('Invalid GSTIN format');
     }
-    
+
     const formattedPeriod = smsHelper.formatGSTR1Period(period, isQuarterly);
     const smsBody = smsHelper.generateGSTR1SMS(gstin, period, isQuarterly);
-    
+
     // Generate short link via API
     const apiResult = await generateSMSShortLink('14409', smsBody);
-    
+
     const encodedBody = encodeURIComponent(smsBody);
-    
+
     return {
         type: 'NIL',
         returnType: 'GSTR-1',
@@ -170,11 +170,11 @@ export async function createGSTR1Filing(gstin, period, isQuarterly = false) {
         period: formattedPeriod,
         isQuarterly: isQuarterly,
         smsBody: smsBody,
-        
+
         // ✅ PRIMARY LINK - Use this in Telegram!
         shortUrl: apiResult.shortUrl,
         shortId: apiResult.shortId,
-        
+
         // Fallback deep links
         deepLinks: {
             primary: apiResult.deepLink || `sms:14409?body=${encodedBody}`,
@@ -185,9 +185,9 @@ export async function createGSTR1Filing(gstin, period, isQuarterly = false) {
             displayText: `📱 Tap to send SMS to 14409`,
             recipient: '14409'
         },
-        
-        description: `File NIL return for GSTR-1 for period ${formattedPeriod.slice(0,2)}/${formattedPeriod.slice(2)} (${isQuarterly ? 'Quarterly' : 'Monthly'})`,
-        
+
+        description: `File NIL return for GSTR-1 for period ${formattedPeriod.slice(0, 2)}/${formattedPeriod.slice(2)} (${isQuarterly ? 'Quarterly' : 'Monthly'})`,
+
         instructions: [
             '1. Tap the "Send SMS" button below',
             '2. Your SMS app will open with pre-filled message',
@@ -195,7 +195,7 @@ export async function createGSTR1Filing(gstin, period, isQuarterly = false) {
             '4. You will receive a 6-digit verification code from 14409',
             '5. Return here and use /confirm command with the code'
         ],
-        
+
         // API status
         apiStatus: {
             available: !apiResult.fallback,
@@ -212,27 +212,27 @@ export async function createGSTR1Filing(gstin, period, isQuarterly = false) {
  * @param {boolean} isQuarterly - Whether this is quarterly filing (for GSTR-1 only)
  * @returns {Promise<Object>} Complete filing process with both steps
  */
-export async function createCompleteSMSFiling(gstin, period, returnType = 'GSTR-3B', isQuarterly = false) {
+async function createCompleteSMSFiling(gstin, period, returnType = 'GSTR-3B', isQuarterly = false) {
     // Validate inputs
     if (!smsHelper.validateGSTIN(gstin)) {
         throw new Error('Invalid GSTIN format');
     }
-    
+
     // Determine which function to use
-    const filing = returnType === 'GSTR-1' 
+    const filing = returnType === 'GSTR-1'
         ? await createGSTR1Filing(gstin, period, isQuarterly)
         : await createSMSFiling(gstin, period);
-    
+
     // Get confirmation SMS format
     const confirmFormat = smsHelper.generateConfirmationSMS('123456', returnType);
     const typeCode = returnType === 'GSTR-1' ? 'R1' : '3B';
-    
+
     // Get eligibility requirements
     const eligibility = smsHelper.getEligibilityRequirements(returnType);
-    
+
     return {
         ...filing,
-        
+
         // Step 1: Initial Filing
         step1: {
             smsBody: filing.smsBody,
@@ -245,7 +245,7 @@ export async function createCompleteSMSFiling(gstin, period, returnType = 'GSTR-
                 '⚠️ Wait for verification code SMS'
             ]
         },
-        
+
         // Step 2: Confirmation
         step2: {
             format: `CNF ${typeCode} <6-digit-code>`,
@@ -263,7 +263,7 @@ export async function createCompleteSMSFiling(gstin, period, returnType = 'GSTR-
                 '✅ You will receive final confirmation SMS'
             ]
         },
-        
+
         // Eligibility
         eligibility: eligibility
     };
@@ -275,12 +275,12 @@ export async function createCompleteSMSFiling(gstin, period, returnType = 'GSTR-
  * @param {string} returnType - 'GSTR-3B' or 'GSTR-1'
  * @returns {Promise<Object>} Confirmation SMS with short URL
  */
-export async function createConfirmationSMS(verificationCode, returnType = 'GSTR-3B') {
+async function createConfirmationSMS(verificationCode, returnType = 'GSTR-3B') {
     const smsBody = smsHelper.generateConfirmationSMS(verificationCode, returnType);
-    
+
     // Generate short link via API
     const apiResult = await generateSMSShortLink('14409', smsBody);
-    
+
     return {
         smsBody: smsBody,
         shortUrl: apiResult.shortUrl, // ✅ USE THIS
@@ -297,27 +297,20 @@ export async function createConfirmationSMS(verificationCode, returnType = 'GSTR
     };
 }
 
-// Re-export helper functions for convenience
-export {
-    validateGSTIN,
-    formatMonth,
-    generateSMSString,
-    generateConfirmationSMS,
-    generateHelpSMS,
-    formatGSTR1Period,
-    generateGSTR1SMS,
-    getEligibilityRequirements
-} from './smsHelper.js';
-
-export default {
+module.exports = {
     createSMSFiling,
     createGSTR1Filing,
     createCompleteSMSFiling,
     createConfirmationSMS,
     generateSMSShortLink,
     getAnalytics,
-    // Helper functions
+    // Re-export helper functions for convenience
     validateGSTIN: smsHelper.validateGSTIN,
     formatMonth: smsHelper.formatMonth,
-    formatGSTR1Period: smsHelper.formatGSTR1Period
+    generateSMSString: smsHelper.generateSMSString,
+    generateConfirmationSMS: smsHelper.generateConfirmationSMS,
+    generateHelpSMS: smsHelper.generateHelpSMS,
+    formatGSTR1Period: smsHelper.formatGSTR1Period,
+    generateGSTR1SMS: smsHelper.generateGSTR1SMS,
+    getEligibilityRequirements: smsHelper.getEligibilityRequirements
 };

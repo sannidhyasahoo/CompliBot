@@ -17,27 +17,21 @@ A comprehensive GST compliance automation bot with AI-powered invoice processing
 npm install
 ```
 
-2. **Configure Environment Variables:**
+2. **Configure Environment:**
+   - Copy `.env.example` to `.env`
+   - Add your Google AI Studio API key
+   - Add your Telegram bot token (optional)
+
+3. **Start the Application:**
 ```bash
-# Copy the example environment file
-cp .env.example .env
-
-# Edit .env and add your API keys and configuration
-```
-
-Required environment variables:
-- `GOOGLE_AI_API_KEY` - Get from [Google AI Studio](https://aistudio.google.com)
-- `TURSO_DATABASE_URL` - Your Turso database URL
-- `TURSO_AUTH_TOKEN` - Your Turso authentication token
-
-Optional variables:
-- `TELEGRAM_BOT_TOKEN` - For Telegram bot features
-- `PORT` - Server port (default: 8080)
-- `NODE_ENV` - Environment (development/production)
-
-3. **Start the API Server:**
-```bash
+# Start API server only
 npm start
+
+# Start Telegram bot + API server
+npm run bot
+
+# Development mode with auto-restart
+npm run dev-bot
 ```
 
 4. **Test the API:**

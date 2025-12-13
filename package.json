@@ -5,14 +5,10 @@
   "main": "index.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "test": "node test-complete.js",
-    "test:api": "node test-api.js",
-    "test:bot": "node test-bot.js",
-    "test:modules": "node -e \"require('./test-complete.js').testGSTHelper(); require('./test-complete.js').testJSONHelper();\"",
     "bot": "node src/index.js",
-    "migrate": "node migrate-db.js",
-    "fix-db": "node fix-database.js"
+    "dev": "nodemon src/server.js",
+    "dev-bot": "nodemon src/index.js",
+    "test": "node test-api.js"
   },
   "author": "",
   "license": "ISC",
@@ -26,8 +22,8 @@
     "express": "^5.2.1",
     "form-data": "^4.0.0",
     "multer": "^1.4.5-lts.1",
-    "telegraf": "^4.16.3",
-    "url": "^0.11.4"
+    "node-fetch": "^2.7.0",
+    "telegraf": "^4.16.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"

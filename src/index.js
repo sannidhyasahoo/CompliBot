@@ -1,74 +1,79 @@
-const { initDB } = require('./db');
-const bot = require('./bot');
-const config = require('./config/env');
+const dotenv = require('dotenv');
+const path = require('path');
 
-// Configuration from centralized config
-const NODE_ENV = config.server.nodeEnv;
-const LOG_LEVEL = config.logging.level;
+// Load environment variables
+dotenv.config();
 
-// Initialize application
-async function startApplication() {
-    try {
-        console.log('🚀 Starting CompliBot Application...');
-        console.log(`🌍 Environment: ${NODE_ENV}`);
-        console.log(`📊 Log Level: ${LOG_LEVEL}`);
-
-        // Initialize database
-        console.log('📊 Initializing database...');
-        await initDB();
-
-        // Check if bot token is available
-        if (!config.telegram.botToken) {
-            console.log('⚠️  Telegram bot token not configured. Skipping bot startup.');
-            console.log('💡 To enable the bot, add TELEGRAM_BOT_TOKEN to your .env file');
-            return;
-        }
-
-        // Start Telegram bot
-        console.log('🤖 Starting Telegram bot...');
-        await bot.launch();
-
-        console.log('✅ CompliBot is running successfully!');
-        console.log('📋 Available services:');
-        console.log('   • Telegram Bot: Active');
-        console.log('   • Database: Connected');
-        console.log('   • GST Processing: Ready');
-        console.log('   • Multilingual Support: English, Hindi, Telugu');
-
-        // Graceful shutdown
-        process.once('SIGINT', () => {
-            console.log('🛑 Received SIGINT, shutting down gracefully...');
-            bot.stop('SIGINT');
-            process.exit(0);
-        });
-
-        process.once('SIGTERM', () => {
-            console.log('🛑 Received SIGTERM, shutting down gracefully...');
-            bot.stop('SIGTERM');
-            process.exit(0);
-        });
-
-    } catch (error) {
-        console.error('❌ Failed to start application:', error);
-
-        if (error.message.includes('401: Unauthorized')) {
-            console.error('💡 Please check your TELEGRAM_BOT_TOKEN in the .env file');
-        } else if (error.message.includes('GOOGLE_AI_API_KEY')) {
-            console.error('💡 Please check your GOOGLE_AI_API_KEY in the .env file');
-        } else if (error.message.includes('Database')) {
-            console.error('💡 Please check your database configuration in the .env file');
-        }
-
-        process.exit(1);
+// Configuration
+const config = {
+    environment: process.env.NODE_ENV || 'development',
+    port: process.env.PORT || 8080,
+    googleAI: {
+        apiKey: process.env.GOOGLE_AI_API_KEY || "AIzaSyAa53MAoT_Zn_lJcqwUrH_qz36abpjUYOg",
+        modelName: process.env.GOOGLE_AI_MODEL || "gemini-2.5-flash-lite"
+    },
+    telegram: {
+        botToken: process.env.TELEGRAM_BOT_TOKEN
+    },
+    gst: {
+        version: "GST3.2.3",
+        maxFileSize: 10 * 1024 * 1024 // 10MB
     }
-}
-
-// Start the application
-if (require.main === module) {
-    startApplication();
-}
-
-module.exports = {
-    startApplication,
-    bot
 };
+
+console.log('🔧 Configuration loaded:');
+console.log(`• Environment: ${config.environment}`);
+console.log(`• Port: ${config.port}`);
+console.log(`• AI Model: ${config.googleAI.modelName}`);
+console.log(`• GST Version: ${config.gst.version}`);
+console.log(`• Max File Size: ${(config.gst.maxFileSize / 1024 / 1024).toFixed(1)}MB`);
+console.log(`• Telegram Bot: ${config.telegram.botToken ? 'Configured' : 'Not configured'}`);
+
+console.log('\n🚀 Starting CompliBot Application...');
+console.log(`🌍 Environment: ${config.environment}`);
+console.log(`📊 Log Level: info`);
+
+// Initialize database
+console.log('📊 Initializing database...');
+require('./db/index');
+
+// Start Telegram bot if token is provided
+if (config.telegram.botToken) {
+    console.log('🤖 Starting Telegram bot...');
+    const bot = require('./bot');
+
+    bot.launch()
+        .then(() => {
+            console.log('✅ Telegram bot started successfully');
+        })
+        .catch((error) => {
+            console.error('❌ Failed to start Telegram bot:', error);
+        });
+
+    // Enable graceful stop
+    process.once('SIGINT', () => bot.stop('SIGINT'));
+    process.once('SIGTERM', () => bot.stop('SIGTERM'));
+} else {
+    console.log('⚠️  Telegram bot token not provided. Bot will not start.');
+    console.log('   Set TELEGRAM_BOT_TOKEN environment variable to enable bot functionality.');
+}
+
+// Start API server
+console.log('🌐 Starting API server...');
+const server = require('./server');
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', error);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+    process.exit(1);
+});
+
+console.log('✅ CompliBot application started successfully!');
+console.log(`📡 API Server: http://localhost:${config.port}`);
+console.log(`🤖 Telegram Bot: ${config.telegram.botToken ? 'Active' : 'Inactive'}`);
+console.log('\n💡 Ready to process GST invoices and assist with compliance!');
