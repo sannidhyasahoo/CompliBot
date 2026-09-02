@@ -3,7 +3,7 @@
  */
 
 require('dotenv').config();
-const FallbackOrchestrator = require('./src/ai/fallbackOrchestrator');
+const FallbackOrchestrator = require('../src/ai/fallbackOrchestrator');
 
 async function testFallbackOrchestration() {
     console.log('🧪 Testing Fallback Orchestration Layer...\n');

@@ -1,22 +1,30 @@
-<<<<<<< HEAD
-src/modules/playground.js
-node_modules
-#documentation
-FILING_PROCESS_DIAGRAM.md
-GST_COMPLIANCE_VERIFICATION.md
-GSTR1_IMPLEMENTATION.md
-MOBILE_TESTING_CHECKLIST.md
-PROGRESS_TRACKER.md
-QUICK_REFERENCE.txt
-API_INTEGRATION_GUIDE.md
-=======
+# Dependencies
 node_modules/
+package-lock.json
+
+# Environment Variables
 .env
+.env.local
+.env.*.local
+
+# Database & Runtime Data
 data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS & Editor files
 .DS_Store
-*.md
-reset-database.js
-test-api.js
-test-otp.js
-verify-setup.js
->>>>>>> sanni
+Thumbs.db
+.vscode/
+.idea/
+
+# Testing & Coverage
+coverage/
+.nyc_output/

@@ -12,8 +12,8 @@ const config = {
 
     // Google AI configuration
     googleAI: {
-        apiKey: process.env.GOOGLE_AI_API_KEY || "AIzaSyAJyyvDgvJVM-K5_XaW8rLZU8vI9lE6Ulw",
-        modelName: process.env.GOOGLE_AI_MODEL || "gemini-1.5-flash"
+        apiKey: process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || "",
+        modelName: process.env.GOOGLE_AI_MODEL || "gemini-2.5-flash-lite"
     },
 
     // Telegram bot configuration

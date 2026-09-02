@@ -11,8 +11,8 @@
  * Status: Production Ready ✅
  */
 
-import * as smsHelper from './smsHelper.js';
-import * as smsDirect from './smsHelperDirect.js';
+const smsHelper = require('../src/modules/smsHelper');
+const smsDirect = require('../src/modules/smsHelperDirect');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Test Framework Utilities

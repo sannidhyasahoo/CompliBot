@@ -3,7 +3,7 @@
  */
 
 require('dotenv').config();
-const AIOrchestrator = require('./src/ai/orchestrator');
+const AIOrchestrator = require('../src/ai/orchestrator');
 
 async function testNaturalLanguageBot() {
     console.log('🧪 Testing Natural Language Bot Integration...\n');
@@ -77,7 +77,6 @@ async function testNaturalLanguageBot() {
                 });
             }
 
-            // Check if intent matches expected (for fallback system)
             if (testCase.expectedIntent && result.intent === testCase.expectedIntent) {
                 console.log(`🎯 Intent matched expected: ${testCase.expectedIntent}`);
             }
@@ -90,13 +89,6 @@ async function testNaturalLanguageBot() {
     }
 
     console.log('🎉 Natural Language Bot Integration test completed!');
-    console.log('\n📋 Summary:');
-    console.log('✅ All user interactions are processed through AI orchestration');
-    console.log('✅ No command-based interactions required');
-    console.log('✅ Natural language understanding works for multiple languages');
-    console.log('✅ SMS filing works through natural text');
-    console.log('✅ GST calculations work through natural text');
-    console.log('✅ Fallback system ensures 100% availability');
 }
 
 // Run tests

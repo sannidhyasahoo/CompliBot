@@ -8,7 +8,8 @@ const onboardingScene = require('./scenes/onboarding');
 require('dotenv').config();
 
 // Initialize Google AI
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "AIzaSyAa53MAoT_Zn_lJcqwUrH_qz36abpjUYOg");
+const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || "";
+const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({ model: process.env.GOOGLE_AI_MODEL || "gemini-2.5-flash-lite" });
 
 // Language support

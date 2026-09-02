@@ -3,7 +3,7 @@
  */
 
 require('dotenv').config();
-const AIOrchestrator = require('./src/ai/orchestrator');
+const AIOrchestrator = require('../src/ai/orchestrator');
 
 async function testOrchestration() {
     console.log('🧪 Testing AI Orchestration Layer...\n');

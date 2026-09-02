@@ -11,7 +11,7 @@ import {
   generateSMSDeepLink,
   getSMSDescription,
   createSMSFiling,
-} from './smsHelper.js';
+} from '../src/modules/smsHelper.js';
 
 console.log('🎮 SMS Engine Playground\n');
 console.log('═'.repeat(60));

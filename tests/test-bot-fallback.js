@@ -56,5 +56,4 @@ testQuestions.forEach((question, index) => {
 });
 
 console.log('✅ Fallback responses are working correctly!');
-console.log('\n💡 The bot will now work even when AI quota is exceeded.');
-console.log('Users will get helpful GST information from fallback responses.');
+console.log('💡 The bot operates seamlessly even when upstream AI quotas are exceeded.');

@@ -4,7 +4,7 @@
 
 require('dotenv').config();
 
-const { generateFallbackJSON } = require('./src/tools/jsonGenerator');
+const { generateFallbackJSON } = require('../src/tools/jsonGenerator');
 
 async function testFallbackJSON() {
     console.log('🧪 Testing Fallback JSON Generator\n');
@@ -40,17 +40,11 @@ async function testFallbackJSON() {
             console.log(`     Total Tax: ₹${item.totalTax.toLocaleString('en-IN')}`);
         });
 
-        console.log('\n✅ Fallback JSON Generator is working perfectly!');
-        console.log('\n💡 This ensures users always get GST return JSON even when:');
-        console.log('   • AI quota is exceeded');
-        console.log('   • Image processing fails');
-        console.log('   • Network issues occur');
-        console.log('   • API is temporarily unavailable');
+        console.log('\n✅ Fallback JSON Generator is working properly!');
 
-        // Test JSON validity
         const jsonString = JSON.stringify(fallbackData, null, 2);
         console.log(`\n📏 JSON Size: ${(jsonString.length / 1024).toFixed(2)} KB`);
-        console.log('📝 JSON is valid and ready for download');
+        console.log('📝 JSON is valid and ready for export');
 
     } catch (error) {
         console.error('❌ Error testing fallback JSON:', error);

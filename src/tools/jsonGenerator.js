@@ -15,8 +15,8 @@ const {
 } = require("../modules/gstHelper");
 
 // Configuration
-const API_KEY = process.env.GOOGLE_AI_API_KEY || "AIzaSyAJyyvDgvJVM-K5_XaW8rLZU8vI9lE6Ulw";
-const MODEL_NAME = process.env.GOOGLE_AI_MODEL || "gemini-1.5-flash";
+const API_KEY = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || "";
+const MODEL_NAME = process.env.GOOGLE_AI_MODEL || "gemini-2.5-flash-lite";
 
 const safetySettings = [
     {

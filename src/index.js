@@ -9,7 +9,7 @@ const config = {
     environment: process.env.NODE_ENV || 'development',
     port: process.env.PORT || 8080,
     googleAI: {
-        apiKey: process.env.GOOGLE_AI_API_KEY || "AIzaSyAa53MAoT_Zn_lJcqwUrH_qz36abpjUYOg",
+        apiKey: process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || "",
         modelName: process.env.GOOGLE_AI_MODEL || "gemini-2.5-flash-lite"
     },
     telegram: {

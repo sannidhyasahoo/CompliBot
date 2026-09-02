@@ -4,7 +4,7 @@
 
 require('dotenv').config();
 
-const { generateNILReturnLink, generateQuickNIL, getNILReturnHelp } = require('./src/tools/nilReturnTool');
+const { generateNILReturnLink, generateQuickNIL, getNILReturnHelp } = require('../src/tools/nilReturnTool');
 
 async function testNILReturnTool() {
     console.log('🧪 Testing NIL Return Tool\n');
@@ -69,13 +69,6 @@ async function testNILReturnTool() {
     }
 
     console.log('\n✅ NIL Return Tool testing completed!');
-    console.log('\n📱 Features available:');
-    console.log('• Clickable SMS links for easy filing');
-    console.log('• Support for both GSTR-3B and GSTR-1');
-    console.log('• Automatic period formatting');
-    console.log('• Step-by-step instructions');
-    console.log('• Confirmation SMS generation');
-    console.log('• Fallback links for compatibility');
 }
 
 // Run test

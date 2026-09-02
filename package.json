@@ -1,18 +1,36 @@
 {
   "name": "complibot",
   "version": "1.0.0",
-  "description": "CompliBot - Telegram GST Filing Assistant",
-  "main": "src/bot.js",
-  "type": "module",
+  "description": "CompliBot - AI-Powered GST Compliance & Automated Filing Assistant for MSMEs",
+  "main": "src/index.js",
   "scripts": {
     "start": "node src/server.js",
     "bot": "node src/index.js",
     "dev": "nodemon src/server.js",
-    "dev-bot": "nodemon src/index.js",
-    "test": "node test-api.js"
+    "dev:bot": "nodemon src/index.js",
+    "test": "node tests/test-sms.js",
+    "test:api": "node tests/test-api.js",
+    "test:ai": "node tests/test-ai-orchestration.js",
+    "test:nil": "node tests/test-nil-return.js",
+    "test:sms": "node tests/test-sms.js",
+    "test:fallback": "node tests/test-fallback-orchestration.js",
+    "test:nl": "node tests/test-natural-language-bot.js",
+    "test:all": "node tests/test-sms.js && node tests/test-nil-return.js && node tests/test-fallback-orchestration.js"
   },
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "gst",
+    "gstin",
+    "compliance",
+    "telegram-bot",
+    "ai",
+    "gemini",
+    "invoice-processing",
+    "sms-filing",
+    "gstr-3b",
+    "gstr-1"
+  ],
+  "author": "CompliBot Team",
+  "license": "MIT",
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "@libsql/client": "^0.14.0",
